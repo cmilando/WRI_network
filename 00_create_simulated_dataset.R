@@ -51,6 +51,24 @@ air_temp <- beta_green * green + beta_albedo * albedo + rnorm(N, sd = 0.5)
 # make output df
 df <- tibble(air_temp, green, albedo, x_coord, y_coord)
 
+# --- plot --------------------------------
+# quick look at spatial signal
+p1 <- ggplot(df, aes(x_coord, y_coord, fill = green))  + 
+  geom_point(size = 2, shape = 21) + coord_equal() +
+  scale_fill_viridis_c() + ggtitle("a. Measured Green") + 
+  theme(legend.position = 'bottom')
 
+p2 <- ggplot(df, aes(x_coord, y_coord, fill = albedo)) + 
+  geom_point(size = 2, shape = 21) + coord_equal() + 
+  scale_fill_viridis_c() + ggtitle("b. Measured Albedo") + 
+  theme(legend.position = 'bottom')
+
+p3 <- ggplot(df, aes(x_coord, y_coord, fill = air_temp)) + 
+  geom_point(size = 2, shape = 21) + coord_equal() + 
+  scale_fill_viridis_c() + ggtitle("c. Measured Air temp") + 
+  theme(legend.position = 'bottom')
+
+p1 + p2 + p3
+ggsave("img/fig1.png", width = 7.83, height = 4.29, dpi = 300)
 
 

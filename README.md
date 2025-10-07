@@ -9,18 +9,22 @@ Creates the simulated data. The key part of this is at the bottom where you
 can define `beta_green` and `beta_albedo` which essentially changes the relationship 
 between either and the response. 
 
-* `01_model_airtemp.R`
+* `01_make_surfaces.R`
 
-Creates the linear model for the predictors, and then does the extra step of
-created a smoothed surface on a nearby grid using 2-d thin plate splines. Probably
+Created a smoothed surface on a nearby grid using 2-d thin plate splines. Probably
 don't need this part since we are just worried about monitors but essentially 
 this is what Ian's code is doing.
 
-* `02_annealing_prep.R`
+* `02_model_airtemp.R`
+
+Creates the linear model for the predictors.
+
+* `03_annealing_prep.R`
 
 Prepares the dataset for annealing, by creating monitor networks
 
-* `03_find_subset.R`
+* `04_find_subset.R`
+
 
 
 * `simann.f90`

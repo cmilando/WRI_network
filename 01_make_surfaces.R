@@ -1,26 +1,3 @@
-# create a linear model to recover air_temp prediction
-lm1 <- glm(air_temp ~ green + albedo, data = df)x
-
-summary(lm1)
-
-# quick look at spatial signal
-p1 <- ggplot(df, aes(x_coord, y_coord, fill = green))  + 
-  geom_point(size = 2, shape = 21) + coord_equal() +
-  scale_fill_viridis_c() + ggtitle("a. Green") + 
-  theme(legend.position = 'bottom')
-
-p2 <- ggplot(df, aes(x_coord, y_coord, fill = albedo)) + 
-  geom_point(size = 2, shape = 21) + coord_equal() + 
-  scale_fill_viridis_c() + ggtitle("b. Albedo") + 
-  theme(legend.position = 'bottom')
-
-p3 <- ggplot(df, aes(x_coord, y_coord, fill = air_temp)) + 
-  geom_point(size = 2, shape = 21) + coord_equal() + 
-  scale_fill_viridis_c() + ggtitle("c. Air temp") + 
-  theme(legend.position = 'bottom')
-
-p1 + p2 + p3
-
 # --- fit 2D thin-plate spline smooths (low-rank TPS) ----------------------------
 # scale coords for numerics
 rngx <- range(df$x_coord); rngy <- range(df$y_coord)
