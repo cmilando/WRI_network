@@ -34,9 +34,11 @@ the SCORE function is defined by model performance
 * The big picture here is to run this for each city, because the number of 
 monitors that are "representative" may change city by city. The 2nd task then
 is using the GoogleAlpha to determine the characteristics of the _networks_ that
-are chosen as representative. So essentially there are 2 tasks: tasks 1 - find 
-representative stations using simulated annealing; task 2 - assess trends using 
-Google things and maybe pick out network trends.
+are chosen as representative. So essentially there are 2 tasks: 
+  
+  * tasks 1 - find representative stations using simulated annealing
+  
+  * task 2 - assess trends using Google things and maybe pick out network trends.
 
 * The un-answered question here is whether the station is "representative", given
 that we know that stations are more likely in some places than others (e.g., 
