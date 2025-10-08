@@ -30,6 +30,13 @@ the SCORE function is defined by model performance
 Remember that for FORTAN the inputs needs to be perfect for it to work
 so if its an integer it needs to have as.integer() in the argument
 
+## Chad ToDo
+
+* Right now you are just comparing the values directly, you aren't using the model
+  I guess eventually you will want to see how the modeled values perform?
+  Like does the subset affect your ability to MODEL, not just cover the datapoints themselves
+  So you need to change this up slightly
+  And do you assess this based on the model coefficients?
 
 ## Notes
 

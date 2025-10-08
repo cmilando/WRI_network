@@ -6,16 +6,12 @@
 #' ============================================================================
 library(tidyverse)
 
-source("00_create_simulated_dataset.R")
-source("01_model_airtemp.R")
-
 S <- rep(0, N)  # the blank matrix
 k <- 5          # the first number of monitors to start with
 
 # importantly you can now compare this output with the fortran output for score
 system("R CMD SHLIB simann.f90")
 
-dyn.unload("simann.so")
 dyn.load("simann.so")
 
 #' ============================================================================

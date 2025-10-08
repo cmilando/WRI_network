@@ -4,6 +4,10 @@
 #' 
 #' ////////////////////////////////////////////////////////////////////////////
 #' ============================================================================
+source("00_create_simulated_dataset.R")
+source("01_model_airtemp.R")
+source("02_annealing_prep.R")
+
 system("R CMD SHLIB simann.f90")
 
 dyn.unload("simann.so")
@@ -30,7 +34,7 @@ find_optimal_set <- function(k_in, rep_in, verbose = 0) {
   return(list(SCORE = oo$SCORE, S = oo$S, k = k_in, rep = rep_in))
 }
 
-oo <- find_optimal_set(5, 1)
+oo <- find_optimal_set(k_in = 5, rep_in = 1, verbose = 1)
 
 # confirming math
 get_score(oo$S)
@@ -50,7 +54,7 @@ plan(multisession)
 # so what I'm learning here is that it probably makes sense
 # to think of reasonable bounds for k before you start
 
-test_grid <- expand_grid(k = 40:50, rep = 1:2)
+test_grid <- expand_grid(k = seq(10, 50, by = 10), rep = 1:5)
 test_grid
 system("rm -r tmp/*")
 
@@ -68,3 +72,8 @@ total_oo[[2]]
 #' 
 #' ////////////////////////////////////////////////////////////////////////////
 #' ============================================================================
+
+plot_df <- do.call(rbind, lapply(total_oo, \(l) data.frame(l$SCORE, l$k, l$rep)))
+
+
+ggplot(plot_df)
