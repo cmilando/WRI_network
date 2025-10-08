@@ -17,7 +17,7 @@ wider confidence intervals from using fewer than all stations
 
 * `02_annealing_prep.R`
 
-Prepares the dataset for annealing, by creating monitor networks
+Prepares the dataset for annealing
 
 * `03_find_subset.R`
 
@@ -27,6 +27,8 @@ Prepares the dataset for annealing, by creating monitor networks
 
 Simulated annealing in FORTRAN
 the SCORE function is defined by model performance 
+Remember that for FORTAN the inputs needs to be perfect for it to work
+so if its an integer it needs to have as.integer() in the argument
 
 
 ## Notes
