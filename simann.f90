@@ -134,38 +134,41 @@ end subroutine get_mse
 ! 
 ! this is what needs to change for a new application
 !--------------------------------------------------------------------------
-subroutine get_score(S, magic_n, np, nsites, site_pairs_sub, row_lookup, penalty, SCORE)
+subroutine get_score(S, df_wide, magic_n, nsites, ndays, score_cols, SCORE)
 
     implicit none
     
     ! Inputs / Outputs
-    integer, intent(in)        :: np                          ! total number of site-point pairs
-    integer, intent(in)        :: magic_n                     ! total number of site-point pairs
-    integer, intent(in)        :: nsites                      ! total number of sites
-    integer, intent(in)        :: S(nsites)                   ! S, a specific iteration of the magic indicator
-    real(kind=8), intent(in)   :: site_pairs_sub(np, 6)       ! X, outcome data (columns: site_id, pop_id, dist, population, metric1, score)
-    real(kind=8), intent(in)   :: row_lookup(nsites, 3)       ! row lookup (columns: site_id, start, end)
-    real(kind=8), intent(in)   :: penalty
+    integer, intent(in)        :: magic_n     ! current value of n subset
+    integer, intent(in)        :: nsites      ! total number of sites
+    integer, intent(in)        :: ndays       ! total number of days
+    integer, intent(in)        :: score_cols  ! number of columns in the score matrix, so 3 (med, min, max)
+    integer                    :: S(nsites)   ! S, a specific iteration of the magic indicator
+    real(kind=8), intent(in)   :: df_wide(nsites, ndays)
     
+    ! Target
     real(kind=8)  :: SCORE                       ! Score to be calculated
     
     ! Local variables
-    integer                   :: i, j, start_idx, end_idx, s_count
-    integer, allocatable      :: pop_id_list(:), S_ones(:)
-    real(kind=8), allocatable :: score_list(:)
-    integer                   :: freq, idx
+    integer                   :: i, s_count
+    integer, allocatable      :: S_ones(:)
     real(kind=8)              :: score2
+    real(kind=8)  :: df_sub(magic_n, ndays)
+    real(kind=8)  :: metric_matrix(ndays, score_cols)
+    real(kind=8)  :: best_matrix(ndays, score_cols)
+    real(kind=8)  :: tmp_xout(ndays)
+    real(kind=8)  :: q(score_cols)
+    real(kind=8)  :: tmp_mse
 
     SCORE = 0.0
 
     ! Allocate arrays to store intermediate data
-    allocate(pop_id_list(np))
-    allocate(score_list(np))
     allocate(S_ones(magic_n))
 
     s_count = 0
-
+    
     ! Loop through S to find indices where S(i) == 1
+    ! keep this
     do i = 1, nsites
         if (S(i) == 1) then
             s_count = s_count + 1
@@ -173,44 +176,51 @@ subroutine get_score(S, magic_n, np, nsites, site_pairs_sub, row_lookup, penalty
         end if
     end do
 
-    ! Loop through selected sites (where S = 1) and gather corresponding site pairs
-    idx = 0
-
+    ! filter the data frame
+    ! df_sub <- df_wide[S_ones, ]
     do i = 1, magic_n
-        ! ok this is where its starting to get weird
-        start_idx = int(row_lookup(S_ones(i), 2))
-        end_idx   = int(row_lookup(S_ones(i), 3))
-        !write(*, *) start_idx, end_idx
-
-        do j = start_idx, end_idx
-            idx = idx + 1
-            pop_id_list(idx) = int(site_pairs_sub(j, 2))
-            score_list(idx) = site_pairs_sub(j, 6)
-        end do
+        df_sub(i, :) = df_wide(S_ones(i), :)
     end do
-
-    ! Calculate frequency of each population id
-    do i = 1, idx
-        freq = count(pop_id_list(1:idx) == pop_id_list(i))
-
-        ! Adjust score based on frequency and penalty
-        score2 = score_list(i) * 1.0 / (penalty * freq)
+    
+    ! get just the points for this sample
+    ! subroutine get_metric(x, nrow, ncol, q, xout)
+    ! yy <- get_metrics(df_sub)
+    ! hard-coded these for now, can obviously change how this works later
+    q(1) = 0.05
+    q(2) = 0.50
+    q(3) = 0.95
+    do i = 1, score_cols
+    
+        ! best
+        tmp_xout = 0
+        call get_metric(df_wide, nsites, ndays, q(i), tmp_xout)
+        best_matrix(:, i) = tmp_xout
         
-        ! create a running sum
-        SCORE = SCORE + score2
+        ! subset
+        tmp_xout = 0
+        call get_metric(df_sub, magic_n, ndays, q(i), tmp_xout)
+        metric_matrix(:, i) = tmp_xout
+        
     end do
-
-    SCORE = SCORE * (-1.0)
-
-    !write(*, *) 'SCORE: ', SCORE
-
+    
+    ! get day-wise errors
+    ! zz = vector("numeric", ncol(df_best))
+    !for(i in 1:(ncol(df_best))) {
+    !  a = unlist(unname(as.vector(df_best[, i])))
+    !  b = unlist(unname(as.vector(yy[, i])))
+    !  zz[i] = get_mse(a, b)
+    !}
+    !get_mse(a, b, n, mse)
+    do i = 1, score_cols
+        tmp_mse = 0
+        call get_mse(best_matrix(:, i), metric_matrix(:, i), ndays, tmp_mse)
+        SCORE = SCORE + tmp_mse
+    end do
+    
     ! Deallocate arrays
-    deallocate(pop_id_list)
-    deallocate(score_list)
     deallocate(S_ones)
 
 end subroutine get_score
-
 
 ! ------------------------------------------------------------------------------------
 ! Simulated Annealing algorithm
@@ -222,23 +232,21 @@ end subroutine get_score
 ! - and then the two places where get_score is calculated
 ! - and the subroutine call obvi
 ! ------------------------------------------------------------------------------------
-subroutine simann(S, magic_n, np, nsites, site_pairs_sub, row_lookup, penalty, SCORE, cooling_rate, verbose)
+subroutine simann(S, df_wide, magic_n, nsites, ndays, score_cols, SCORE, cooling_rate, verbose)
     
     !  Temp_max, Temp_min, cooling_rate
 
     implicit none
     
     ! Inputs / Outputs that need to change for new applications
-    integer, intent(in)        :: np                     ! total number of site-point pairs
-    integer, intent(in)        :: magic_n                ! total number of site-point pairs
-    integer, intent(in)        :: nsites                 ! total number of sites
-
-    real(kind=8), intent(in)   :: site_pairs_sub(np, 6)  ! X, outcome data (columns: site_id, pop_id, dist, population, metric1, score)
-    real(kind=8), intent(in)   :: row_lookup(nsites, 3)  ! row lookup (columns: site_id, start, end)
-    real(kind=8), intent(in)   :: penalty
+    integer, intent(in)        :: magic_n     ! current value of n subset
+    integer, intent(in)        :: nsites      ! total number of sites
+    integer, intent(in)        :: ndays       ! total number of days
+    integer, intent(in)        :: score_cols  ! number of columns in the score matrix, so 3 (med, min, max)
+    integer         :: S(nsites)   ! S, a specific iteration of the magic indicator
+    real(kind=8), intent(in)   :: df_wide(nsites, ndays)
     
     ! Inputs / Outputs that don't need to change for new applications
-    integer              :: S(nsites)              ! S, a specific iteration of the magic indicator
     integer              :: Sprev(nsites)                !  , a prevoious iteration of the magic indicator
     integer              :: Sbest(nsites)                !  , the best
 
@@ -285,7 +293,7 @@ subroutine simann(S, magic_n, np, nsites, site_pairs_sub, row_lookup, penalty, S
     
     ! //////////////////////////////////////////////
     ! >>>>>>> this call will need to change <<<<<<<<
-    call get_score(S, magic_n, np, nsites, site_pairs_sub, row_lookup, penalty, SCORE)
+    call get_score(S, df_wide, magic_n, nsites, ndays, score_cols, SCORE)
     ! >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
     ! //////////////////////////////////////////////
     
@@ -326,7 +334,7 @@ subroutine simann(S, magic_n, np, nsites, site_pairs_sub, row_lookup, penalty, S
             
             ! //////////////////////////////////////////////
             ! >>>>>>> this call will need to change <<<<<<<<
-            call get_score(S, magic_n, np, nsites, site_pairs_sub, row_lookup, penalty, SCORE)
+            call get_score(S, df_wide, magic_n, nsites, ndays, score_cols, SCORE)
             ! >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
             ! //////////////////////////////////////////////
             
@@ -392,4 +400,5 @@ subroutine simann(S, magic_n, np, nsites, site_pairs_sub, row_lookup, penalty, S
     if(verbose .eq. 1) write(*,*) "N. cycles = ", cycle_i
 
 end subroutine simann
+
 

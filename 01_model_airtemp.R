@@ -11,7 +11,7 @@ library(future)
 library(future.apply)
 plan(multisession)
 
-N_boot <- 5000  # the number of bootstrap iterations
+N_boot <- 500  # the number of bootstrap iterations
 sz     <- 0.5   # the fraction of monitors to be used each bootstrap
 
 #' ============================================================================

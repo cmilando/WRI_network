@@ -12,12 +12,11 @@ dyn.load("simann.so")
 
 oo <- .Fortran("simann",
                S = as.integer(S),
-               magic_n = as.integer(length(which(S == 1))),
-               np = as.integer(nrow(site_pairs_sub)),
-               nsites = as.integer(length(unique(site_pairs_sub$site_id))),
-               site_pairs_sub = aa,
-               row_lookup = bb,
-               penalty = 1,
+               df_wide = df_wide,
+               magic_n = as.integer(k),
+               nsites = as.integer(N),
+               ndays = as.integer(N_daymet),
+               score_cols = as.integer(3),
                SCORE = 0.,
                cooling_rate = 0.95,
                verbose = as.integer(1)) 
@@ -33,6 +32,7 @@ oo$SCORE
 #' ////////////////////////////////////////////////////////////////////////////
 #' ============================================================================
 
+library(future)
 
 
 

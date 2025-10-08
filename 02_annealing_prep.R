@@ -18,7 +18,7 @@ system("R CMD SHLIB simann.f90")
 dyn.unload("simann.so")
 dyn.load("simann.so")
 
- #' ============================================================================
+#' ============================================================================
 #' ////////////////////////////////////////////////////////////////////////////
 
 # probably the way to do this in FORTRAN is to convert df to wide first
@@ -51,8 +51,8 @@ stopifnot(mean(abs(check_r1 - check_f1$xout)) < 0.001)
 
 # now wrap into a bigger function
 get_metrics <- function(df_sub) {
-  stat1 <- get_metric(df_sub, 0.50)
-  stat2 <- get_metric(df_sub, 0.05)
+  stat1 <- get_metric(df_sub, 0.05)
+  stat2 <- get_metric(df_sub, 0.50)
   stat3 <- get_metric(df_sub, 0.95)
   return(cbind(stat1, stat2, stat3))
 }
@@ -63,12 +63,27 @@ df_best <- get_metrics(df_wide)
 # function for MSE
 get_mse <- function(a, b) mean((a - b)^2)
 
+# check that its comparable
+# get_mse(a, b, n, mse)
+set.seed(123)
+a = rnorm(10)
+b = rnorm(10)
+check_f3 <- .Fortran('get_mse', 
+                     a = a, 
+                     b = b, 
+                     n = as.integer(10), 
+                     mse = 0.)
+stopifnot(mean(abs(check_f3$mse - get_mse(a, b))) < 0.001)
+
+
 # This is the R version of your score matrix
 # you can use it to check your math
 # for now, lets say is the sum of squared errors for 
 # daily NETWORK mean, 5th percentile, and 95th percentile
 get_score <- function(S_local) {
-
+  
+  # S_local = S
+  
   S_ones <- which(S_local == 1)
   
   # filter the data frame
@@ -86,8 +101,9 @@ get_score <- function(S_local) {
     zz[i] = get_mse(a, b)
   }
 
-  # get sum, and make it negative
-  -1*sum(zz)
+  # get sum
+  # since we want this to be low, you don't have to make it negative
+  sum(zz)
 
 }
 
@@ -95,7 +111,22 @@ get_score <- function(S_local) {
 S[c(1:k)] <- 1
 
 # get the score
-get_score(S)
+check_r2 <- get_score(S)
+
+# compare
+# S, df_wide, magic_n, nsites, ndays, SCORE
+# get_score(S, df_wide, magic_n, nsites, ndays, score_cols, SCORE)
+check_f2 <- .Fortran('get_score', 
+                     S = as.integer(S),
+                     df_wide = df_wide,
+                     magic_n = as.integer(k),
+                     nsites = as.integer(N),
+                     ndays = as.integer(N_daymet),
+                     score_cols = as.integer(3),
+                     SCORE = 0.)
+
+
+stopifnot(mean(abs(check_r2 - check_f2$SCORE)) < 0.001)
 
 #' ============================================================================
 #' ////////////////////////////////////////////////////////////////////////////
