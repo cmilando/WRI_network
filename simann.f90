@@ -57,9 +57,77 @@ subroutine get_neighbor(x0, x1, l)
 
 end subroutine get_neighbor
 
-subroutine hello
-  write(*, *)  'hi'
-end subroutine hello
+!--------------------------------------------------------------------------
+! quantile function
+!--------------------------------------------------------------------------
+subroutine get_metric(x, nrow, ncol, q, xout)
+  implicit none
+  
+  integer :: nrow, ncol
+  real(kind = 8) :: x(nrow, ncol)
+  real(kind = 8) :: q
+  real(kind = 8) :: xout(ncol)
+
+  real(kind = 8) :: col(nrow)
+  integer :: i, j, k, idx_low, idx_high
+  real(kind = 8) :: pos, frac, temp
+  
+  do j = 1, ncol
+  
+     ! copy column j into a working array
+     do i = 1, nrow
+        col(i) = x(i, j)
+     end do
+
+     ! sort the column in ascending order (simple insertion sort for clarity)
+     do i = 2, nrow
+        temp = col(i)
+        k = i - 1
+        do while (k >= 1 .and. col(k) > temp)
+           col(k+1) = col(k)
+           k = k - 1
+        end do
+        col(k+1) = temp
+     end do
+
+     ! compute quantile position (R type 7: (n-1)*q + 1)
+     pos = (nrow - 1) * q + 1
+     idx_low = int(floor(pos))
+     idx_high = int(ceiling(pos))
+     frac = pos - idx_low
+
+     if (idx_high > nrow) idx_high = nrow
+
+     if (idx_low == idx_high) then
+        xout(j) = col(idx_low)
+     else
+        xout(j) =  col(idx_low) + frac * (col(idx_high) - col(idx_low))
+     end if
+  end do
+  
+end subroutine get_metric
+
+!--------------------------------------------------------------------------
+! mse
+!--------------------------------------------------------------------------
+subroutine get_mse(a, b, n, mse)
+  implicit none
+  integer, intent(in) :: n
+  double precision, intent(in) :: a(n), b(n)
+  double precision, intent(out) :: mse
+
+  integer :: i
+  double precision :: diff, sumsq
+
+  sumsq = 0.0d0
+  do i = 1, n
+     diff = a(i) - b(i)
+     sumsq = sumsq + diff * diff
+  end do
+
+  mse = sumsq / dble(n)
+end subroutine get_mse
+
 
 !--------------------------------------------------------------------------
 ! Cost function for SCORE

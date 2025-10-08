@@ -29,12 +29,12 @@ lm1 <- glm(air_temp ~ daymet + green + albedo, data = df)
 boot.fn = function (i, sz) {
   
   # get indices
-  monitor_ids = sample(1:N, size = round(sz * N),
+  monitor_id_subset = sample(1:N, size = round(sz * N),
                  replace = F)
   
   # get new glm for this subset of monitors
   lm_boot <- glm(air_temp ~ daymet + green + albedo, 
-                 data = df %>% filter(id %in% monitor_ids))
+                 data = df %>% filter(monitor_id %in% monitor_id_subset))
   
   return (coef(lm_boot))
 }

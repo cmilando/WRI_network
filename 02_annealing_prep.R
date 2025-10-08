@@ -6,18 +6,29 @@
 #' ============================================================================
 library(tidyverse)
 
+source("00_create_simulated_dataset.R")
+source("01_model_airtemp.R")
+
 S <- rep(0, N)  # the blank matrix
 k <- 5          # the first number of monitors to start with
 
-#' ============================================================================
+# importantly you can now compare this output with the fortran output for score
+system("R CMD SHLIB simann.f90")
+
+dyn.unload("simann.so")
+dyn.load("simann.so")
+
+.Fortran("hello")
+
+ #' ============================================================================
 #' ////////////////////////////////////////////////////////////////////////////
 
 # probably the way to do this in FORTRAN is to convert df to wide first
 # because then its just rows and columns
 # and probably becomes easier to subset
-df_wide <- df %>% pivot_wider(id_cols = 'id', names_from = 'day_id',
+df_wide <- df %>% pivot_wider(id_cols = 'monitor_id', names_from = 'day_id',
                               values_from = 'air_temp') %>% 
-  select(-id) %>% as.matrix()
+  select(-monitor_id) %>% as.matrix()
 
 # get true values by day
 # and this is for the response
@@ -28,6 +39,19 @@ df_wide <- df %>% pivot_wider(id_cols = 'id', names_from = 'day_id',
 #' @param q a quantile
 get_metric <- function(x, q) apply(x, 2, function(a) quantile(a, q))
 
+# check that this works against the Fortran version
+check_r1 <- get_metric(df_wide, 0.50)
+
+check_f1 <- .Fortran('get_metric', 
+                     x = df_wide, 
+                     nrow = as.integer(N), 
+                     ncol = as.integer(N_daymet), 
+                     q = 0.5, 
+                     xout = vector("numeric", N_daymet))
+
+stopifnot(mean(abs(check_r1 - check_f1$xout)) < 0.001)
+
+# 
 get_metrics <- function(df_sub) {
   stat1 <- get_metric(df_sub, 0.50)
   stat2 <- get_metric(df_sub, 0.05)
@@ -78,10 +102,7 @@ get_score(S)
 #' ============================================================================
 #' ////////////////////////////////////////////////////////////////////////////
 
-# importantly you can now compare this output with the fortran output for score
-system("R CMD SHLIB simann.f90")
-dyn.unload("simann.so")
-dyn.load("simann.so")
+
 
 
 
