@@ -37,6 +37,19 @@ so if its an integer it needs to have as.integer() in the argument
   Like does the subset affect your ability to MODEL, not just cover the datapoints themselves
   So you need to change this up slightly
   And do you assess this based on the model coefficients?
+  
+* Ok there are two additional thoughts here - you can't really do the RMSE alone, because you
+  might just get lucky and get two points where it predicts really well. probably what you need
+  is estimate the coefficients using the subset and then predict at all places you have data. 
+  Again this doesn't solve the issue of over-representation in some areas, but again, we can't solve that.
+  
+  Another way to think about this is the bias-variance trade-off -- in some ways if you 
+  leave the part about the distribution of the inputs in, you'll also account for this.
+  
+  So i think the ultimate solution is a scoring function that includes both the
+  distribution of the predictors and how well the beta coefficients do at predicting at 
+  every monitor, with gamma tuning params in front of each that I can turn on or off as 
+  necessary
 
 ## Notes
 
@@ -73,7 +86,8 @@ this is what Ian's code is doing.
 above as a discussion point.  
 
   * The other reason  you don't want to do joint is the choice of penalty function
-  will be hugely sensitive. so this way you can give the user more choice
+  will be have a huge impact on the results. so actually doing it k by k allows us 
+  to observe the surface, and users can choose more what they want (80%, 90%) etc.
 
   * so solution is 1 N at a time, in parallel: Declaring all dummy variables as 
   THREADPRIVATE seems to help. see [here](https://stackoverflow.com/questions/39196532/calling-subroutine-in-parallel-environment)
