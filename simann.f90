@@ -2,24 +2,31 @@
 ! Author: CWM
 ! Date started: 6.21.2024
 ! Purpose: Subroutines for simulated annealing
-! NOTE: This only works for S as an integer, and with no other confounders
+!
+! NOTES: 
+! - This only works for S as an integer, and with no other confounders
+! - All subroutines need to be in this file
+! - For doing in parallel, you may need to add THREADPRIVATE somewhere
 !--------------------------------------------------------------------------
 
 !--------------------------------------------------------------------------
 ! Subroutine for swapping discrete neighbors
+! 
+! Note: This does not need to change for a new application
 !--------------------------------------------------------------------------
 subroutine get_neighbor(x0, x1, l)
     
     implicit none
 
-    integer :: l
-    real    :: p0, p1
-    integer :: p0_int, p1_int
-    integer :: x0(l), x1(l)
+    integer :: l                ! length of the index vector
+    real    :: p0, p1           ! random numbers, [0, 1)
+    integer :: p0_int, p1_int   ! converted to fractions of l
+    integer :: x0(l), x1(l)     ! the old and new index choices
 
     ! Initialize x1 to be x0
     x1 = x0
-
+    
+    ! -- SWAP STEP -----------------------
     ! now swap two indices
     ! random_number is [0, 1)
     ! FORTRAN arrays start at 1
@@ -32,7 +39,16 @@ subroutine get_neighbor(x0, x1, l)
     ! these cannot be the same so, try again if so
     ! Note: This is how you ensure you have all different indices
     if (x0(p1_int) .eq. x0(p0_int) ) go to 10
-
+    ! -- END SWAP ------------------------
+    
+    ! Note: if you wanted to introduce other options
+    ! for joint annealing, here is where you would do it
+    ! and the steps themselves would have different probabilities
+    ! which likely would be adjusted on the fly
+    ! so that the closer you got to the end, the more likely
+    ! swaps were and the less likely you were to add in or remove neighbors
+    
+    ! -- UPDATE THE NEIGHBORS -- 
     x1(p0_int) = x0(p1_int)
     x1(p1_int) = x0(p0_int)
 
@@ -40,6 +56,8 @@ end
 
 !--------------------------------------------------------------------------
 ! Cost function for SCORE
+! 
+! this is what needs to change for a new application
 !--------------------------------------------------------------------------
 subroutine get_score(S, magic_n, np, nsites, site_pairs_sub, row_lookup, penalty, SCORE)
 
@@ -123,6 +141,11 @@ end
 ! Simulated Annealing algorithm
 !
 ! informed by sci-kits sko SA.py
+!
+! This only needs to change in a few places for a new application:
+! - The inputs and Outputs
+! - and then the two places where get_score is calculated
+! - and the subroutine call obvi
 ! ------------------------------------------------------------------------------------
 subroutine simann(S, magic_n, np, nsites, site_pairs_sub, row_lookup, penalty, SCORE, cooling_rate, verbose)
     
@@ -130,7 +153,7 @@ subroutine simann(S, magic_n, np, nsites, site_pairs_sub, row_lookup, penalty, S
 
     implicit none
     
-    ! Inputs / Outputs
+    ! Inputs / Outputs that need to change for new applications
     integer, intent(in)        :: np                     ! total number of site-point pairs
     integer, intent(in)        :: magic_n                ! total number of site-point pairs
     integer, intent(in)        :: nsites                 ! total number of sites
@@ -138,7 +161,8 @@ subroutine simann(S, magic_n, np, nsites, site_pairs_sub, row_lookup, penalty, S
     real(kind=8), intent(in)   :: site_pairs_sub(np, 6)  ! X, outcome data (columns: site_id, pop_id, dist, population, metric1, score)
     real(kind=8), intent(in)   :: row_lookup(nsites, 3)  ! row lookup (columns: site_id, start, end)
     real(kind=8), intent(in)   :: penalty
-
+    
+    ! Inputs / Outputs that don't need to change for new applications
     integer              :: S(nsites)              ! S, a specific iteration of the magic indicator
     integer              :: Sprev(nsites)                !  , a prevoious iteration of the magic indicator
     integer              :: Sbest(nsites)                !  , the best
@@ -152,19 +176,20 @@ subroutine simann(S, magic_n, np, nsites, site_pairs_sub, row_lookup, penalty, S
     real(kind=8)         :: rv             ! random variable to check
 
     integer :: verbose
-
     real(kind=8) :: rel_tol, abs_tol
 
     ! Simulated annealing parmeters
     real(kind = 8) :: Temp_curr  ! 
     real(kind = 8) :: Temp_max   ! 
     real(kind = 8) :: Temp_min   ! 
-    real(kind = 8) :: cooling_rate, curr_rel_tol, abs_score_diff
-    integer :: LoC
-    integer :: stay_counter
-    integer :: max_stay_counter
-    integer :: cycle_i
-    integer :: iter_i  ! long of chain, may_stay_counter
+    real(kind = 8) :: cooling_rate 
+    real(kind = 8) :: curr_rel_tol
+    real(kind = 8) :: abs_score_diff
+    integer        :: LoC
+    integer        :: stay_counter
+    integer        :: max_stay_counter
+    integer        :: cycle_i
+    integer        :: iter_i  ! long of chain, may_stay_counter
 
     ! --------------------------------------------------------
     ! Initialize
@@ -178,12 +203,17 @@ subroutine simann(S, magic_n, np, nsites, site_pairs_sub, row_lookup, penalty, S
     SCOREbest        = 0.
     Temp_max         = 500000.
     Temp_min         = 0.0000000001
-    !cooling_rate     = 0.95
     Temp_curr        = Temp_max
 
     ! **************
     ! INTIAL VALUES
+    
+    ! //////////////////////////////////////////////
+    ! >>>>>>> this call will need to change <<<<<<<<
     call get_score(S, magic_n, np, nsites, site_pairs_sub, row_lookup, penalty, SCORE)
+    ! >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    ! //////////////////////////////////////////////
+    
     Sprev   = S
     Sbest   = S
     SCOREprev  = SCORE
@@ -218,8 +248,13 @@ subroutine simann(S, magic_n, np, nsites, site_pairs_sub, row_lookup, penalty, S
             ! calculate a new y. so this updates the value of SCORE
             ! similarly, y_current = SCOREprev
             ! and y_new = SCORE
+            
+            ! //////////////////////////////////////////////
+            ! >>>>>>> this call will need to change <<<<<<<<
             call get_score(S, magic_n, np, nsites, site_pairs_sub, row_lookup, penalty, SCORE)
-
+            ! >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            ! //////////////////////////////////////////////
+            
             ! ** METROPOLIS **
             df = SCORE - SCOREprev
             call random_number(rv)
