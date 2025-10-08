@@ -10,16 +10,27 @@ dyn.unload("simann.so")
 
 dyn.load("simann.so")
 
-oo <- .Fortran("simann",
-               S = as.integer(S),
-               df_wide = df_wide,
-               magic_n = as.integer(k),
-               nsites = as.integer(N),
-               ndays = as.integer(N_daymet),
-               score_cols = as.integer(3),
-               SCORE = 0.,
-               cooling_rate = 0.95,
-               verbose = as.integer(1)) 
+find_optimal_set <- function(k_in, rep_in, verbose = 0) {
+  
+  write.table(NA, file = paste0("tmp/k",k_in, "_rep", rep_in))
+  
+  dyn.load("simann.so")
+  
+  oo <- .Fortran("simann",
+                 S = as.integer(S),
+                 df_wide = df_wide,
+                 magic_n = as.integer(k_in),
+                 nsites = as.integer(N),
+                 ndays = as.integer(N_daymet),
+                 score_cols = as.integer(3),
+                 SCORE = 0.,
+                 cooling_rate = 0.95,
+                 verbose = as.integer(verbose)) 
+  
+  return(list(SCORE = oo$SCORE, S = oo$S, k = k_in, rep = rep_in))
+}
+
+oo <- find_optimal_set(5, 1)
 
 # confirming math
 get_score(oo$S)
@@ -27,18 +38,29 @@ oo$SCORE
 
 #' ============================================================================
 #' ////////////////////////////////////////////////////////////////////////////
-#' Now in parallel, computer for 1:N monitors 
+#' Now in parallel, computer for 1:N monitors, and maybe like 10 times per K
 #' 
 #' ////////////////////////////////////////////////////////////////////////////
 #' ============================================================================
 
 library(future)
+library(future.apply)
+plan(multisession)
 
+# so what I'm learning here is that it probably makes sense
+# to think of reasonable bounds for k before you start
 
+test_grid <- expand_grid(k = 40:50, rep = 1:2)
+test_grid
+system("rm -r tmp/*")
 
+# hard to de-bug but does work
+total_oo <- future_lapply(1:nrow(test_grid), \(i) {
+  find_optimal_set(test_grid$k[i], test_grid$rep[i])
+})
 
-
-
+total_oo[[1]]
+total_oo[[2]]
 
 #' ============================================================================
 #' ////////////////////////////////////////////////////////////////////////////
