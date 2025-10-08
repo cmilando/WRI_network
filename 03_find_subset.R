@@ -83,8 +83,16 @@ total_oo <- future_lapply(1:nrow(test_grid), \(i) {
 #' ============================================================================
 
 plot_df <- do.call(rbind, lapply(total_oo, \(l) data.frame(l$SCORE, l$k, l$rep)))
+plot_med <- plot_df %>%
+  group_by(l.k) %>% summarize(.groups = 'keep', med = median(l.SCORE))
 
 ggplot(plot_df) +
-  geom_boxplot(aes(x = l.k, y = l.SCORE / l.k, group = l.k))
+  geom_line(data = plot_med,
+            aes(x = l.k / N * 100, y = med / l.k),
+            color = 'blue', linewidth = 1, linetype = '11') + 
+  geom_boxplot(aes(x = l.k / N * 100, y = l.SCORE / l.k, group = l.k)) +
+  xlab("% of monitors included") + 
+  ylab("Composite error score per monitor")
+  
 
-ggsave("img/fig2.png", width = 8, height = 4, dpi = 500)
+ggsave("img/fig2.png", width = 8.9, height = 4.2, dpi = 500)
