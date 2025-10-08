@@ -48,11 +48,18 @@ subroutine get_neighbor(x0, x1, l)
     ! so that the closer you got to the end, the more likely
     ! swaps were and the less likely you were to add in or remove neighbors
     
+    ! Note2: if you do this though, you need to update the SCORE to have
+    ! a penalty for the additional stations
+    
     ! -- UPDATE THE NEIGHBORS -- 
     x1(p0_int) = x0(p1_int)
     x1(p1_int) = x0(p0_int)
 
-end
+end subroutine get_neighbor
+
+subroutine hello
+  write(*, *)  'hi'
+end subroutine hello
 
 !--------------------------------------------------------------------------
 ! Cost function for SCORE
@@ -134,7 +141,7 @@ subroutine get_score(S, magic_n, np, nsites, site_pairs_sub, row_lookup, penalty
     deallocate(score_list)
     deallocate(S_ones)
 
-end
+end subroutine get_score
 
 
 ! ------------------------------------------------------------------------------------
@@ -316,4 +323,5 @@ subroutine simann(S, magic_n, np, nsites, site_pairs_sub, row_lookup, penalty, S
     SCORE = SCOREbest
     if(verbose .eq. 1) write(*,*) "N. cycles = ", cycle_i
 
-END
+end subroutine simann
+

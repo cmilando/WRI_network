@@ -5,9 +5,10 @@ that don't compromise model performance.
 
 * `00_create_simulated_dataset.R`
 
-Creates the simulated data. The key part of this is at the bottom where you 
-can define `beta_daymet`, `beta_green`, and `beta_albedo` which essentially 
-changes the relationship between predictor and the response. 
+Creates the simulated data. The key part is where you can define `beta_daymet`, 
+`beta_green`, and `beta_albedo` which essentially 
+changes the relationship between predictor and the response. Otherwise this
+isn't really important -- we have these data already, just needed something.
 
 * `01_model_airtemp.R`
 
@@ -60,7 +61,10 @@ this is what Ian's code is doing.
   OR you can just do this for 1 N at a time. 
   
   * Is it useful to know what the error is by station #? I think so. You can add the 
-above as a discussion point. 
+above as a discussion point.  
+
+  * The other reason  you don't want to do joint is the choice of penalty function
+  will be hugely sensitive. so this way you can give the user more choice
 
   * so solution is 1 N at a time, in parallel: Declaring all dummy variables as 
   THREADPRIVATE seems to help. see [here](https://stackoverflow.com/questions/39196532/calling-subroutine-in-parallel-environment)

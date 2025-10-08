@@ -75,6 +75,15 @@ S[c(1:k)] <- 1
 # get the score
 get_score(S)
 
+#' ============================================================================
+#' ////////////////////////////////////////////////////////////////////////////
+
+# importantly you can now compare this output with the fortran output for score
+system("R CMD SHLIB simann.f90")
+dyn.unload("simann.so")
+dyn.load("simann.so")
+
+
 
 
 

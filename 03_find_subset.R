@@ -5,8 +5,11 @@
 #' ////////////////////////////////////////////////////////////////////////////
 #' ============================================================================
 system("R CMD SHLIB simann.f90")
+
 dyn.unload("simann.so")
+
 dyn.load("simann.so")
+
 oo <- .Fortran("simann",
                S = as.integer(S),
                magic_n = as.integer(length(which(S == 1))),
@@ -17,7 +20,7 @@ oo <- .Fortran("simann",
                penalty = 1,
                SCORE = 0.,
                cooling_rate = 0.95,
-               verbose = as.integer(1)) # the closer to 1 the slower the cooling. 0.92 is fast
+               verbose = as.integer(1)) 
 
 # confirming math
 get_score(oo$S)
