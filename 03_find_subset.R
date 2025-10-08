@@ -20,6 +20,10 @@ find_optimal_set <- function(k_in, rep_in, verbose = 0) {
   
   dyn.load("simann.so")
   
+  # initialize S to be relative to this k_in
+  S <- rep(0, N)  
+  S[c(1:k_in)] <- 1
+  
   oo <- .Fortran("simann",
                  S = as.integer(S),
                  df_wide = df_wide,
@@ -34,7 +38,7 @@ find_optimal_set <- function(k_in, rep_in, verbose = 0) {
   return(list(SCORE = oo$SCORE, S = oo$S, k = k_in, rep = rep_in))
 }
 
-oo <- find_optimal_set(k_in = 5, rep_in = 1, verbose = 1)
+oo <- find_optimal_set(k_in = 50, rep_in = 1, verbose = 1)
 
 # confirming math
 get_score(oo$S)
@@ -53,18 +57,23 @@ plan(multisession)
 
 # so what I'm learning here is that it probably makes sense
 # to think of reasonable bounds for k before you start
+# specifically, you can't do k = N, k must always be < N
 
-test_grid <- expand_grid(k = seq(10, 50, by = 10), rep = 1:5)
+test_grid <- expand_grid(k = seq(10, 100, by = 10), rep = 1:5)
 test_grid
 system("rm -r tmp/*")
 
-# hard to de-bug but does work
+# run in parallel, takes  
 total_oo <- future_lapply(1:nrow(test_grid), \(i) {
-  find_optimal_set(test_grid$k[i], test_grid$rep[i])
+  
+  # you can't do k = N, k must always be < N
+  if (test_grid$k[i] == N) return(NULL)
+  
+  find_optimal_set(k_in = test_grid$k[i], 
+                   rep_in = test_grid$rep[i],
+                   verbose = 0)
+  
 })
-
-total_oo[[1]]
-total_oo[[2]]
 
 #' ============================================================================
 #' ////////////////////////////////////////////////////////////////////////////
@@ -75,5 +84,7 @@ total_oo[[2]]
 
 plot_df <- do.call(rbind, lapply(total_oo, \(l) data.frame(l$SCORE, l$k, l$rep)))
 
+ggplot(plot_df) +
+  geom_boxplot(aes(x = l.k, y = l.SCORE / l.k, group = l.k))
 
-ggplot(plot_df)
+ggsave("img/fig2.png", width = 8, height = 4, dpi = 500)

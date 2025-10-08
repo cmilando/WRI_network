@@ -24,6 +24,8 @@ df_wide <- df %>% pivot_wider(id_cols = 'monitor_id', names_from = 'day_id',
                               values_from = 'air_temp') %>% 
   select(-monitor_id) %>% as.matrix()
 
+df_wide
+
 # get true values by day
 # and this is for the response
 # daily NETWORK 50th percentile, 5th percentile, and 95th percentile
@@ -71,6 +73,11 @@ check_f3 <- .Fortran('get_mse',
                      mse = 0.)
 stopifnot(mean(abs(check_f3$mse - get_mse(a, b))) < 0.001)
 
+check_f3 <- .Fortran('get_mse', 
+                     a = a, 
+                     b = a, 
+                     n = as.integer(10), 
+                     mse = 0.)
 
 # This is the R version of your score matrix
 # you can use it to check your math
@@ -120,14 +127,28 @@ check_f2 <- .Fortran('get_score',
                      ndays = as.integer(N_daymet),
                      score_cols = as.integer(3),
                      SCORE = 0.)
-
+check_f2
 
 stopifnot(mean(abs(check_r2 - check_f2$SCORE)) < 0.001)
 
-#' ============================================================================
-#' ////////////////////////////////////////////////////////////////////////////
+# another check, the mse should be 0 if the k = nsites
 
+# get the first set
+S[c(1:N)] <- 1
 
+# get the score
+check_r2 <- get_score(S)
+check_r2
+
+check_zero <- .Fortran('get_score', 
+                     S = as.integer(S),
+                     df_wide = df_wide,
+                     magic_n = as.integer(N),
+                     nsites = as.integer(N),
+                     ndays = as.integer(N_daymet),
+                     score_cols = as.integer(3),
+                     SCORE = 0.)
+check_zero
 
 
 
