@@ -18,8 +18,6 @@ system("R CMD SHLIB simann.f90")
 dyn.unload("simann.so")
 dyn.load("simann.so")
 
-.Fortran("hello")
-
  #' ============================================================================
 #' ////////////////////////////////////////////////////////////////////////////
 
@@ -51,7 +49,7 @@ check_f1 <- .Fortran('get_metric',
 
 stopifnot(mean(abs(check_r1 - check_f1$xout)) < 0.001)
 
-# 
+# now wrap into a bigger function
 get_metrics <- function(df_sub) {
   stat1 <- get_metric(df_sub, 0.50)
   stat2 <- get_metric(df_sub, 0.05)
@@ -88,7 +86,7 @@ get_score <- function(S_local) {
     zz[i] = get_mse(a, b)
   }
 
-  # get sum
+  # get sum, and make it negative
   -1*sum(zz)
 
 }
