@@ -61,7 +61,9 @@ plan(multisession)
 
 test_grid <- expand_grid(k = seq(10, 100, by = 10), rep = 1:5)
 test_grid
+system("mkdir tmp")
 system("rm -r tmp/*")
+
 
 # run in parallel, takes  
 total_oo <- future_lapply(1:nrow(test_grid), \(i) {
