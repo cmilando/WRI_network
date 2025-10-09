@@ -48,6 +48,8 @@
   just be the median only. --> hmm so this still shows up if you do the median alone.
   So, seems like I should analyze which stationsa are being chosen at each iteration
   
+  * Solved! This was due to low numbers!
+  
 ## Other notes
 
 * The big picture here is to run this for each city, because the number of 

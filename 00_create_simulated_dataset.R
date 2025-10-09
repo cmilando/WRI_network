@@ -20,7 +20,7 @@ N <- 50             # number of monitors
 beta_green  <- 2     # beta coefficient for greenness
 beta_albedo <- 1.5   # beta coefficient for albedo
 
-N_daymet    <- 20    # number of days of daily meteorology
+N_daymet    <- 100    # number of days of daily meteorology
 beta_daymet <- 10    # beta coefficient for the meteorology parameter
 
 air_temp_sd <- 2     # st dev for random error, increase for more noise
@@ -66,6 +66,6 @@ p4 <- ggplot(df %>% filter(day_id == 1),
   theme(legend.position = 'bottom')
 
 (p1 + p2) / (p3 + p4) 
-ggsave("img/fig1.png", width = 8, height = 7, dpi = 300)
+ggsave("img/features.png", width = 8, height = 6, dpi = 300)
 
 

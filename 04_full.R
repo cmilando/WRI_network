@@ -13,7 +13,10 @@ library(future.apply)
 plan(multisession)
 
 system("R CMD SHLIB simann.f90")
+
+# load the library and create a tmp directory
 dyn.load("simann.so")
+system("mkdir tmp")
 
 #' ============================================================================
 #' ////////////////////////////////////////////////////////////////////////////
@@ -49,13 +52,18 @@ day_id_col <- c('day_id')
 
 # quantiles to assess feature similarity
 # moved in from the edges to be slightly more robust
-
-# assess_quantiles <- c(0.05, 0.50, 0.95)
-assess_quantiles <- c(0.50)
+# note that if N or n_days is too small, this will make some slight
+# irregularities in the results (e.g., the set for 80% of monitors
+# might be a better fit than the set for 90% of monitors)
+assess_quantiles <- c(0.05, 0.50, 0.95)
 
 # this assigns the weights to the different components of the composite score
 # position 1 is for predictors similarity
 # position 2 is for the output of the linear model
+# This is somewhat arbitrary based on how much you want to weight each thing
+# and the values in your dataset (so 4:1 doesn't mean 4x more, because
+# its relative to the values and size of the datasets)
+# the minimum here is 0
 lambda_vec <- c(1, 1)
 
 # this roughly determines how quickly the simulated annealing converges
@@ -65,7 +73,7 @@ cooling_rate <- 0.95
 # number of monitoring groups to assess at
 # number of repetitions at each group
 # note: you many want to change the test_grid below if these values
-#       are really large, I tested this with a dataset of 100 Monitors
+#       are really large, I tested this with a dataset of 50 Monitors
 #       but if you have 1000 that will be probably not great
 N_groups     <- 10
 N_group_reps <- 5
@@ -130,6 +138,7 @@ df_wide <- df %>% pivot_wider(id_cols = !!monitor_id_col,
   select(-!!monitor_id_col) %>% as.matrix()
 
 stopifnot(all(dim(df_wide) == c(N, n_days)))
+stopifnot(all(!(is.na(df_wide))))
 
 # also have to do some treatment to the co-variates
 Y_matrix    <- as.matrix(df[, response_col])
@@ -203,16 +212,16 @@ k_vec <- round(seq(0, N, length.out = (N_groups+1))[2:(N_groups+1)])
 test_grid <- expand_grid(k = k_vec, rep = 1:N_group_reps)
 test_grid
 
-system("mkdir tmp")
 system("rm -r tmp/*")
 
 # run in parallel, takes a few minutes total
 # can watch progress in /tmp
 total_oo <- future_lapply(1:nrow(test_grid), \(i) {
   
-  # you can't do k = N, k must always be < N
+  # you can't do k = N, k must always be 1 <= k < N
   # just for sim-ann, because the algorithm
   # you can get a score, which you checked earlier
+  if (test_grid$k[i] == 0) return(NULL)
   if (test_grid$k[i] == N) return(NULL)
   
   find_optimal_set(k_in = test_grid$k[i], 
