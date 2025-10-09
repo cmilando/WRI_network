@@ -25,6 +25,9 @@ dyn.load("simann.so")
 # Load the dataset
 df <- readRDS("test_df.RDS")
 
+# df needs coordinates cols
+coords_cols   <- c('x_coord', 'y_coord')
+
 # names of the predictor columns
 predictor_cols <- c('daymet', 'green', 'albedo')
 
@@ -46,12 +49,14 @@ day_id_col <- c('day_id')
 
 # quantiles to assess feature similarity
 # moved in from the edges to be slightly more robust
-assess_quantiles <- c(0.05, 0.50, 0.95)
+
+# assess_quantiles <- c(0.05, 0.50, 0.95)
+assess_quantiles <- c(0.50)
 
 # this assigns the weights to the different components of the composite score
 # position 1 is for predictors similarity
 # position 2 is for the output of the linear model
-lambda_vec <- c(1, 0)
+lambda_vec <- c(1, 1)
 
 # this roughly determines how quickly the simulated annealing converges
 # 0.95 is a good starting point
@@ -59,6 +64,9 @@ cooling_rate <- 0.95
 
 # number of monitoring groups to assess at
 # number of repetitions at each group
+# note: you many want to change the test_grid below if these values
+#       are really large, I tested this with a dataset of 100 Monitors
+#       but if you have 1000 that will be probably not great
 N_groups     <- 10
 N_group_reps <- 5
 
@@ -68,6 +76,10 @@ N_group_reps <- 5
 #' 
 #' ////////////////////////////////////////////////////////////////////////////
 #' ============================================================================
+
+# names of the coordinates
+stopifnot(all(coords_cols %in% colnames(df)))
+stopifnot(all(typeof(unlist(df[,coords_cols])) == 'double'))
 
 # names of the linear model predictors
 stopifnot(all(predictor_cols %in% colnames(df)))
@@ -250,3 +262,66 @@ p2 <- ggplot(plot_df_long %>% filter(name != 'l.SCORE')) +
   ylab("Composite error score per monitor")  
 
 p1 + ggtitle('a. Combined score') + p2 + ggtitle('b. Individual components')
+
+ggsave("img/curves.png", width = 8.9, height = 4.2, dpi = 600)
+
+#' ============================================================================
+#' ////////////////////////////////////////////////////////////////////////////
+#' Make the spatial plot 
+#' 
+#' ////////////////////////////////////////////////////////////////////////////
+#' ============================================================================
+
+S_plot_df <- do.call(rbind, lapply(total_oo, \(l) {
+  if(any(is.null(l))) return(NULL)
+  x1 <- data.frame(S = l$S)
+  x1$monitor_id = 1:nrow(x1)
+  colnames(x1)[2] = monitor_id_col
+  x1 <- left_join(x1, unique(df[, c(monitor_id_col, coords_cols)]))
+  x1$k <- l$k
+  x1$rep <- l$rep
+  x1
+}))
+
+head(S_plot_df)
+
+##
+S_plot_df_agg <- S_plot_df %>% 
+  group_by(x_coord, y_coord, monitor_id, k) %>%
+  summarize(
+    .groups = 'keep',
+    S_sum = sum(S)
+  ) %>%
+  mutate(S_prob = S_sum / N_group_reps)
+
+pt_size = 3
+pt_shape = 21
+
+p1 <- ggplot(S_plot_df_agg, 
+       aes(x_coord, y_coord, fill = S_prob))  + 
+  geom_point(size = pt_size, shape = pt_shape, show.legend = F) + 
+  scale_fill_viridis_c() + 
+  ggtitle("Probability of selection - by k") +
+  facet_wrap(~k)
+
+##
+S_plot_df_agg2 <- S_plot_df %>% 
+  group_by(x_coord, y_coord, monitor_id) %>%
+  summarize(
+    .groups = 'keep',
+    n = n(),
+    S_sum = sum(S)
+  ) %>%
+  mutate(S_prob = S_sum / n)
+
+S_plot_df_agg2
+
+p2 <- ggplot(S_plot_df_agg2, 
+       aes(x_coord, y_coord, fill = S_prob))  + 
+  geom_point(size = pt_size, shape = pt_shape, show.legend = F) + 
+  scale_fill_viridis_c() + coord_equal() +
+  ggtitle("Probability of selection - overall")
+
+p1 + p2 + plot_layout(widths = c(0.8, 0.4))
+
+ggsave("img/P_by_k.png", width = 10.29167, height = 6.37500, dpi = 600)

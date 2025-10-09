@@ -12,9 +12,10 @@ library(tidyverse)
 library(mgcv)
 library(patchwork)
 
+# set.seed(123)
 set.seed(122341233)
 
-N <- 100             # number of monitors
+N <- 50             # number of monitors
 
 beta_green  <- 2     # beta coefficient for greenness
 beta_albedo <- 1.5   # beta coefficient for albedo

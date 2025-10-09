@@ -35,6 +35,19 @@
   
   There is something not converging about the matrices, so you need to fix that
   
+  * figure out why at 80% there is an irregular pattern in the feature curve
+
+  * so, it does seem to be varying based on the seed but still present at ~80
+  
+  * it doesn't show up at N = 10 or 20, but does at N = 100. Interestingly, at
+  N = 50, the trend at 80% goes the other way, so it goes up. 
+  
+  * Theory 1: could be that the ones that get good performance at 80 wouldn't
+  include ones that make performance worse at 90 or 70%. One way I could test
+  this would be just to change q, to either include the min and max, or 
+  just be the median only. --> hmm so this still shows up if you do the median alone.
+  So, seems like I should analyze which stationsa are being chosen at each iteration
+  
 ## Other notes
 
 * The big picture here is to run this for each city, because the number of 
