@@ -76,6 +76,9 @@ so if its an integer it needs to have as.integer() in the argument
   Also, you want to export the final Score and Z1 and Z2 separately, so you can plot
   And do manual calibration based on how much you care about each thing
   
+  There is something not converging about the matrices, so you need to fix that
+  
+  
 
 ## Notes
 

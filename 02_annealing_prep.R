@@ -127,7 +127,8 @@ n <- 100L; p <- 3L
 X <- matrix(rnorm(n*p), n, p)
 Y <- rnorm(n)
 
-beta <- double(p); info <- integer(1)
+beta <- double(p); 
+info <- integer(1)
 
 ## SVD version (robust)
 rank <- integer(1)
@@ -206,6 +207,8 @@ get_score <- function(S_local) {
     # β = (XTX)−1XTy
     beta_vector <- MASS::ginv(t(X_matrix_sub) %*% X_matrix_sub) %*% 
       t(X_matrix_sub) %*% Y_sub
+    
+    print(beta_vector)
     
     # now predict on the full set
     pred_sub <- X_matrix %*% beta_vector

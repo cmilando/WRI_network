@@ -162,80 +162,75 @@ subroutine ols_svd(X, Y, n, p, rcond, beta, rank, info)
   !-----------------------------------------------------------------------
   implicit none
   integer, intent(in)    :: n, p
-  double precision, intent(in)  :: X(n, p), Y(n), rcond
-  double precision, intent(out) :: beta(p)
+  real(kind=8), intent(in)  :: X(n, p), Y(n), rcond
+  real(kind=8), intent(out) :: beta(p)
   integer, intent(out)   :: rank, info
 
-  !----------------------------------------------------------
   ! Local variables
-  !----------------------------------------------------------
   integer :: m, nrhs, lda, ldb, lwork, liwork
-  double precision, allocatable :: A(:,:), B(:,:), S(:), work(:)
+  real(kind=8), allocatable :: A(:,:), B(:,:), S(:), work(:)
   integer, allocatable :: iwork(:)
 
   ! Declare LAPACK routine
   external dgelsd
 
-  !----------------------------------------------------------
   ! Set dimensions
-  !----------------------------------------------------------
   m    = n          ! Number of rows in X
   nrhs = 1          ! Number of RHS vectors (Y is a single column)
   lda  = max(1, m)  ! Leading dimension of A
   ldb  = max(1, max(m, p))  ! Leading dimension of B (must be >= max(m,p))
 
-  !----------------------------------------------------------
   ! Allocate working arrays
-  !----------------------------------------------------------
   allocate(A(lda, p))
   allocate(B(ldb, nrhs))
   allocate(S(min(m, p)))   ! Singular values
 
-  !----------------------------------------------------------
   ! Copy inputs because DGELSD overwrites A and B
-  !----------------------------------------------------------
   A = X
   B(1:m,1) = Y
   if (ldb > m) B(m+1:ldb,1) = 0.0d0   ! Pad with zeros if necessary
 
-  !----------------------------------------------------------
   ! Workspace query (first call with lwork = -1 and liwork = -1)
   ! to get the optimal work array sizes for DGELSD.
-  !----------------------------------------------------------
   lwork  = -1
   liwork = -1
   allocate(work(1))
   allocate(iwork(1))
 
-  call dgelsd(m, p, nrhs, A, lda, B, ldb, S, rcond, rank, work, lwork, iwork, liwork, info)
+  call dgelsd(m, p, nrhs, A, lda, B, ldb, S, rcond, rank, &
+     &        work, lwork, iwork, liwork, info)
 
   ! Optimal sizes are returned in work(1) and iwork(1)
   lwork  = int(work(1))
   liwork = iwork(1)
+  
+  ! write(*,*) info
+  ! write(*,*) lwork
+  ! write(*,*) liwork
 
   deallocate(work)
   deallocate(iwork)
   allocate(work(lwork))
   allocate(iwork(liwork))
 
-  !----------------------------------------------------------
   ! Actual solve step:
   ! DGELSD overwrites B with the solution in its first p entries.
-  !----------------------------------------------------------
-  call dgelsd(m, p, nrhs, A, lda, B, ldb, S, rcond, rank, work, lwork, iwork, liwork, info)
-
-  !----------------------------------------------------------
+  call dgelsd(m, p, nrhs, A, lda, B, ldb, S, rcond, rank, & 
+   &          work, lwork, iwork, liwork, info)
+  
+  ! write(*,*) B(1:p, 1)
+  
   ! Extract beta
-  !----------------------------------------------------------
-  if (info == 0) then
+  ! if (info == 0) then
+  if (info >= 0) then
      beta = B(1:p, 1)
   else
      beta = 0.0d0
   end if
-
-  !----------------------------------------------------------
+  
+  ! write(*,*) beta
+  
   ! Clean up
-  !----------------------------------------------------------
   deallocate(A, B, S, work, iwork)
   
 end subroutine ols_svd
@@ -252,42 +247,53 @@ subroutine get_score(S, df_wide, magic_n, nsites, ndays, score_cols, &
     implicit none
     
     ! Inputs / Outputs
-    integer, intent(in)        :: magic_n     ! current value of n subset
-    integer, intent(in)        :: nsites      ! total number of sites
-    integer, intent(in)        :: ndays       ! total number of days
-    integer, intent(in)        :: score_cols  ! number of columns in the score matrix, so 3 (med, min, max)
-    integer                    :: S(nsites)   ! S, a specific iteration of the magic indicator
+    integer, intent(in)        :: magic_n                  ! current value of n subset
+    integer, intent(in)        :: nsites                   ! total number of sites
+    integer, intent(in)        :: ndays                    ! total number of days
+    
+    integer, intent(in)        :: score_cols               ! number of columns in the score matrix, so 3 (med, min, max)
+    integer                    :: S(nsites)                ! S, a specific iteration of the magic indicator
+    
     real(kind=8), intent(in)   :: df_wide(nsites, ndays)
-    integer, intent(in)        :: n_predictors  ! total number of predictors in X
+    
+    integer, intent(in)        :: n_predictors             ! total number of predictors in X
     real(kind=8), intent(in)   :: X_matrix(nsites * ndays, n_predictors)
     integer, intent(in)        :: ID_vector(nsites * ndays)
     real(kind=8), intent(in)   :: Y_matrix(nsites * ndays)
     real(kind=8), intent(in)   :: lambda(2)
     
     ! Target
-    real(kind=8)  :: SCORE                       ! Score to be calculated
-    real(kind=8)  :: SCORE_z1                    ! Component of z1
-    real(kind=8)  :: SCORE_z2                    ! Component of z2
+    real(kind=8)  :: SCORE                                 ! Score to be calculated
+    real(kind=8)  :: SCORE_z1                              ! Component of z1
+    real(kind=8)  :: SCORE_z2                              ! Component of z2
     
     ! Local variables
-    integer                   :: i, s_count
-    integer, allocatable      :: S_ones(:)
-
+    integer       :: i, s_count
+    integer       :: S_ones(magic_n)
+    
     real(kind=8)  :: df_sub(magic_n, ndays)
     real(kind=8)  :: metric_matrix(ndays, score_cols)
     real(kind=8)  :: best_matrix(ndays, score_cols)
     real(kind=8)  :: tmp_xout(ndays)
     real(kind=8)  :: q(score_cols)
     real(kind=8)  :: tmp_rmse
-
+    
+    integer       :: total_rows
+    integer       :: m_sub_rows(magic_n * ndays)
+    real(kind=8)  :: X_sub(magic_n * ndays, n_predictors)
+    real(kind=8)  :: Y_sub(magic_n * ndays)
+    real(kind=8)  :: tmp_beta(n_predictors)
+    real(kind=8)  :: rcond
+    integer       :: rank, info
+    real(kind=8)  :: pred(nsites * ndays)
+    
+    ! Initialize
     SCORE    = 0.0
     SCORE_z1 = 0.0
     SCORE_z2 = 0.0
 
-    ! Allocate arrays to store intermediate data
-    allocate(S_ones(magic_n))
-
     s_count = 0
+    total_rows = nsites * ndays
     
     ! Loop through S to find indices where S(i) == 1
     ! keep this
@@ -355,7 +361,52 @@ subroutine get_score(S, df_wide, magic_n, nsites, ndays, score_cols, &
     ! --- PART 2 ------
     ! -----------------
     
-    SCORE_z2 = 0.0
+    if (lambda(2) > 0.0) then
+    
+      ! m_sub_rows <- which(ID_vector %in% S_ones)
+      ! Y_sub <- matrix(Y_matrix[m_sub_rows, ], ncol = 1)
+      ! X_matrix_sub <- X_matrix[m_sub_rows, ]
+      s_count = 0
+      do i = 1, total_rows
+          if (any(S_ones == ID_vector(i))) then
+              s_count = s_count + 1
+              m_sub_rows(s_count) = ID_vector(i)
+              Y_sub(s_count) = Y_matrix(i)
+              X_sub(s_count, :) = X_matrix(i, :)
+          end if
+      end do
+      
+      !# classic OLM invervsion lets go
+      !# β = (XTX)−1XTy
+      !beta_vector <- MASS::ginv(t(X_matrix_sub) %*% X_matrix_sub) %*% 
+      !  t(X_matrix_sub) %*% Y_sub
+      !ols_svd(X, Y, n, p, rcond, beta, rank, info)
+      tmp_beta = 0.0
+      rcond = 1e-6
+      rank = 1
+      info = 1
+      
+      ! *** NEED TO FIX THIS BECAUSE I TOOK A SHORTCUT FOR THE INFO PARAMETER
+      call ols_svd(X_sub, Y_sub, magic_n * ndays, n_predictors, rcond,  &
+       &           tmp_beta, rank, info)
+      ! ********
+       
+      ! write(*,*) tmp_beta
+    
+      !# now predict on the full set
+      !pred_sub <- X_matrix %*% beta_vector
+      pred = MATMUL(X_matrix, tmp_beta)
+      
+      !# and, you guessed it get_rmse
+      !z2 <- get_rmse(Y_matrix, pred_sub)
+      SCORE_z2 = 0.0
+      call get_rmse(Y_matrix, pred, total_rows, SCORE_z2)
+    
+    else
+    
+      SCORE_z2 = 0.0
+    
+    end if
     
     ! -----------------
     ! --- PART 3 ------
@@ -363,8 +414,5 @@ subroutine get_score(S, df_wide, magic_n, nsites, ndays, score_cols, &
     
     SCORE = lambda(1) * SCORE_z1 + lambda(2) * SCORE_z2
     
-    ! Deallocate arrays
-    deallocate(S_ones)
-
 end subroutine get_score
 
