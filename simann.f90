@@ -241,7 +241,7 @@ end subroutine ols_svd
 ! this is what needs to change for a new application
 !--------------------------------------------------------------------------
 subroutine get_score(S, df_wide, magic_n, nsites, ndays, score_cols, & 
- &                   X_matrix, n_predictors, ID_vector, Y_matrix, lambda,  & 
+ &                   X_matrix, n_predictors, ID_vector, Y_matrix, lambda_vec,  & 
  &                   SCORE_z1, SCORE_z2, SCORE)
 
     implicit none
@@ -260,7 +260,7 @@ subroutine get_score(S, df_wide, magic_n, nsites, ndays, score_cols, &
     real(kind=8), intent(in)   :: X_matrix(nsites * ndays, n_predictors)
     integer, intent(in)        :: ID_vector(nsites * ndays)
     real(kind=8), intent(in)   :: Y_matrix(nsites * ndays)
-    real(kind=8), intent(in)   :: lambda(2)
+    real(kind=8), intent(in)   :: lambda_vec(2)
     
     ! Target
     real(kind=8)  :: SCORE                                 ! Score to be calculated
@@ -308,7 +308,7 @@ subroutine get_score(S, df_wide, magic_n, nsites, ndays, score_cols, &
     ! --- PART 1 ------
     ! -----------------
     
-    if (lambda(1) > 0.0) then
+    if (lambda_vec(1) > 0.0) then
       
       ! filter the data frame
       ! df_sub <- df_wide[S_ones, ]
@@ -361,7 +361,7 @@ subroutine get_score(S, df_wide, magic_n, nsites, ndays, score_cols, &
     ! --- PART 2 ------
     ! -----------------
     
-    if (lambda(2) > 0.0) then
+    if (lambda_vec(2) > 0.0) then
     
       ! m_sub_rows <- which(ID_vector %in% S_ones)
       ! Y_sub <- matrix(Y_matrix[m_sub_rows, ], ncol = 1)
@@ -412,7 +412,209 @@ subroutine get_score(S, df_wide, magic_n, nsites, ndays, score_cols, &
     ! --- PART 3 ------
     ! -----------------
     
-    SCORE = lambda(1) * SCORE_z1 + lambda(2) * SCORE_z2
+    SCORE = lambda_vec(1) * SCORE_z1 + lambda_vec(2) * SCORE_z2
     
 end subroutine get_score
+
+! ------------------------------------------------------------------------------------
+! Simulated Annealing algorithm
+!
+! informed by sci-kits sko SA.py
+!
+! This only needs to change in a few places for a new application:
+! - The inputs and Outputs
+! - and then the two places where get_score is calculated
+! - and the subroutine call obvi
+! ------------------------------------------------------------------------------------
+subroutine simann(S, df_wide, magic_n, nsites, ndays, score_cols, & 
+      & X_matrix, n_predictors, ID_vector, Y_matrix, lambda_vec, &
+      & SCORE_z1, SCORE_z2, SCORE, cooling_rate, verbose)
+    
+    implicit none
+    
+    ! Inputs / Outputs that need to change for new applications
+    integer                    :: magic_n     ! current value of n subset
+    integer, intent(in)        :: nsites      ! total number of sites
+    integer, intent(in)        :: ndays       ! total number of days
+    integer, intent(in)        :: score_cols  ! number of columns in the score matrix, so 3 (med, min, max)
+    integer                    :: S(nsites)   ! S, a specific iteration of the magic indicator
+    real(kind=8), intent(in)   :: df_wide(nsites, ndays)
+    
+    
+    integer, intent(in)        :: n_predictors             ! total number of predictors in X
+    real(kind=8), intent(in)   :: X_matrix(nsites * ndays, n_predictors)
+    integer, intent(in)        :: ID_vector(nsites * ndays)
+    real(kind=8), intent(in)   :: Y_matrix(nsites * ndays)
+    real(kind=8), intent(in)   :: lambda_vec(2)
+    
+    ! Inputs / Outputs that don't need to change for new applications
+    integer              :: Sprev(nsites)                !  , a prevoious iteration of the magic indicator
+    integer              :: Sbest(nsites)                !  , the best
+
+    real(kind=8)         :: SCORE                        !
+    real(kind=8)         :: SCORE_z1                              ! Component of z1
+    real(kind=8)         :: SCORE_z2                              ! Component of z2
+    real(kind=8)         :: SCOREprev                    !  
+    real(kind=8)         :: SCOREbest                    !  
+    real(kind=8)         :: SCOREbest1, SCOREbest2       ! generations of SCOREbest
+    
+    real(kind=8)         :: SCORE_z1best                    !
+    real(kind=8)         :: SCORE_z2best                    !
+    
+    real(kind=8)         :: df             ! comparison of SCOREs
+    real(kind=8)         :: rv             ! random variable to check
+
+    integer :: verbose
+    real(kind=8) :: rel_tol, abs_tol
+
+    ! Simulated annealing parmeters
+    real(kind = 8) :: Temp_curr  ! 
+    real(kind = 8) :: Temp_max   ! 
+    real(kind = 8) :: Temp_min   ! 
+    real(kind = 8) :: cooling_rate 
+    real(kind = 8) :: curr_rel_tol
+    real(kind = 8) :: abs_score_diff
+    integer        :: LoC
+    integer        :: stay_counter
+    integer        :: max_stay_counter
+    integer        :: cycle_i
+    integer        :: iter_i  ! long of chain, may_stay_counter
+
+    ! --------------------------------------------------------
+    ! Initialize
+    call random_seed()
+    rel_tol          = 1.0e-2
+    abs_tol          = 1.0e-3
+    LoC              = 500
+    max_stay_counter = 500
+    stay_counter     = 0
+    cycle_i          = 0
+    SCOREbest        = 0.
+    SCORE_z1best     = 0.
+    SCORE_z2best     = 0.
+    Temp_max         = 500000.
+    Temp_min         = 0.0000000001
+    Temp_curr        = Temp_max
+
+    ! **************
+    ! INTIAL VALUES
+    
+    ! //////////////////////////////////////////////
+    ! >>>>>>> this call changes with get_score <<<<<<<<
+    call get_score(S, df_wide, magic_n, nsites, ndays, score_cols, & 
+    &  X_matrix, n_predictors, ID_vector, Y_matrix, lambda_vec,  & 
+    &                   SCORE_z1, SCORE_z2,SCORE)
+    ! >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+    ! //////////////////////////////////////////////
+    
+    Sprev   = S
+    Sbest   = S
+    SCOREprev  = SCORE
+    SCOREbest  = SCORE
+    SCOREbest1 = SCORE
+    SCOREbest2 = SCORE
+    ! **************
+
+    if(verbose .eq. 1) write(*, *) "Started"
+
+    ! Simulated Annealing Loop
+    ! converted to FORTRAN from python in scikit-opt on 10.4.2023 by CWM
+    do 
+        
+        ! Update SCOREbest1 and SCOREbest2
+        SCOREbest2 = SCOREbest1
+        SCOREbest1 = SCORE
+
+        ! -----------------
+        ! ** PHASE 1 **
+        ! -----------------
+        ! Loop for all L in a specific chain
+        do iter_i = 1, LoC
+
+            !if(verbose .eq. 1 .and. mod(iter_i, 100) .eq. 0) write(*, *) iter_i
+            
+            ! get a new x. so S becomes a new version of Sprev
+            ! so x_current = Sprev
+            ! and x_new = S
+            call get_neighbor(Sprev, S, nsites)
+
+            ! calculate a new y. so this updates the value of SCORE
+            ! similarly, y_current = SCOREprev
+            ! and y_new = SCORE
+            
+            ! //////////////////////////////////////////////
+            ! >>>>>>> this call changes with get_score <<<<<<<<
+            call get_score(S, df_wide, magic_n, nsites, ndays, score_cols, & 
+            &  X_matrix, n_predictors, ID_vector, Y_matrix, lambda_vec,  & 
+            &                   SCORE_z1, SCORE_z2,SCORE)
+            ! >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+            ! //////////////////////////////////////////////
+            
+            ! ** METROPOLIS **
+            df = SCORE - SCOREprev
+            call random_number(rv)
+            if (df < 0.0 .or. exp(-df / Temp_curr) > rv) then
+                Sprev  = S             ! x_current = x_new
+                SCOREprev = SCORE      ! y_current = y_new
+                if (SCORE < SCOREbest) then
+                    if(verbose .eq. 1) write(*, *) "best updated", cycle_i, SCORE
+                    Sbest  = S
+                    SCOREbest = SCORE
+                    SCORE_z1best = SCORE_z1
+                    SCORE_z2best = SCORE_z2
+                end if
+            end if
+            
+        end do
+
+        ! -----------------
+        ! ** PHASE 2 **
+        ! -----------------
+        ! Update cycle
+        cycle_i = cycle_i + 1
+        
+        ! Cool down
+        Temp_curr = Temp_curr * cooling_rate
+
+        ! Get counter conditions
+        ! so you have [SCOREbest2, SCOREbest1, and SCOREbest]
+        ! SCOREbest was just updated, and so you should have the best past 3
+        ! so now, check stay counter
+        ! Need to check that this works correctly ....
+        abs_score_diff = abs(SCOREbest1 - SCOREbest2)
+        curr_rel_tol = rel_tol * max(abs(SCOREbest1), abs(SCOREbest2))
+        if(abs_score_diff <= max(curr_rel_tol, abs_tol)) then
+            stay_counter = stay_counter + 1
+        else 
+            stay_counter = 0
+        end if
+
+        ! check two stop conditions 
+        ! Condition !: temperature   
+         if (Temp_curr .lt. Temp_min) then
+            if(verbose .eq. 1) write(*,*) "Cooled to final temperature"
+            if(verbose .eq. 1) write(*,*) "Stay counter: ", stay_counter
+            if(verbose .eq. 1) write(*,*) "abs score diff", abs_score_diff
+            if(verbose .eq. 1) write(*,*) "curr_rel_tol", curr_rel_tol
+            if(verbose .eq. 1) write(*,*) "abs_tol", abs_tol
+            go to 99
+        end if
+
+        ! Condition 2: stability counter
+        if (stay_counter .gt. max_stay_counter) then
+            if(verbose .eq. 1) write(*,*) "Stayed unchanged in ", stay_counter, " iterations"
+            go to 99
+        end if
+
+    end do
+
+    ! Update the outputs
+99  S = Sbest
+    SCORE = SCOREbest
+    SCORE_z1 = SCORE_z1best
+    SCORE_z2 = SCORE_z2best
+    if(verbose .eq. 1) write(*,*) "N. cycles = ", cycle_i
+
+end subroutine simann
+
 

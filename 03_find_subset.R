@@ -31,14 +31,23 @@ find_optimal_set <- function(k_in, rep_in, verbose = 0) {
                  nsites = as.integer(N),
                  ndays = as.integer(N_daymet),
                  score_cols = as.integer(3),
+                 X_matrix = X_matrix,
+                 n_predictors = as.integer(N_predictors),
+                 ID_vector = as.integer(ID_vector),
+                 Y_matrix = Y_matrix,
+                 labmda_vec = lambda_vec,
+                 SCORE_z1 = 0.,
+                 SCORE_z2 = 0.,
                  SCORE = 0.,
                  cooling_rate = 0.95,
                  verbose = as.integer(verbose)) 
   
-  return(list(SCORE = oo$SCORE, S = oo$S, k = k_in, rep = rep_in))
+  return(list(SCORE = oo$SCORE, SCORE_z1 = oo$SCORE_z1, SCORE_z2 = oo$SCORE_z2,
+              S = oo$S, k = k_in, rep = rep_in))
 }
 
 oo <- find_optimal_set(k_in = 50, rep_in = 1, verbose = 1)
+oo
 
 # confirming math
 get_score(oo$S)
@@ -59,7 +68,7 @@ plan(multisession)
 # to think of reasonable bounds for k before you start
 # specifically, you can't do k = N, k must always be < N
 
-test_grid <- expand_grid(k = seq(10, 100, by = 10), rep = 1:5)
+test_grid <- expand_grid(k = seq(10, 100, by = 3), rep = 1:5)
 test_grid
 system("mkdir tmp")
 system("rm -r tmp/*")

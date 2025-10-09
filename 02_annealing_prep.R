@@ -257,7 +257,7 @@ check_f2 <- .Fortran('get_score',
                      n_predictors = as.integer(N_predictors),
                      ID_vector = as.integer(ID_vector),
                      Y_matrix = Y_matrix,
-                     labmda = lambda_vec,
+                     labmda_vec = lambda_vec,
                      SCORE_z1 = 0.,
                      SCORE_z2 = 0.,
                      SCORE = 0.)
@@ -280,13 +280,20 @@ check_r2 <- get_score(S)
 check_r2
 
 check_zero <- .Fortran('get_score', 
-                     S = as.integer(S),
-                     df_wide = df_wide,
-                     magic_n = as.integer(N),
-                     nsites = as.integer(N),
-                     ndays = as.integer(N_daymet),
-                     score_cols = as.integer(3),
-                     SCORE = 0.)
+                       S = as.integer(S),
+                       df_wide = df_wide,
+                       magic_n = as.integer(k),
+                       nsites = as.integer(N),
+                       ndays = as.integer(N_daymet),
+                       score_cols = as.integer(3),
+                       X_matrix = X_matrix,
+                       n_predictors = as.integer(N_predictors),
+                       ID_vector = as.integer(ID_vector),
+                       Y_matrix = Y_matrix,
+                       labmda_vec = lambda_vec,
+                       SCORE_z1 = 0.,
+                       SCORE_z2 = 0.,
+                       SCORE = 0.)
 check_zero
 
 stopifnot(mean(abs(check_r2 - check_zero$SCORE)) < 0.001)
