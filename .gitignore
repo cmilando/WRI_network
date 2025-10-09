@@ -5,4 +5,5 @@
 *.so
 *.o
 tmp/*
-*.hmtl
+*.html
+.DS_Store
