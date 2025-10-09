@@ -14,6 +14,19 @@ system("R CMD SHLIB simann.f90")
 
 dyn.load("simann.so")
 
+
+# now for the linear model section
+predictor_cols <- c('daymet', 'green', 'albedo')
+monitor_id_col <- c('monitor_id')
+response_col   <- c('air_temp')
+
+beta_vector <- c(beta_daymet, beta_green, beta_albedo) # same order as above
+
+# this assigns the weights to the different components of the composite score
+# position 1 is for predictors similarity
+# position 2 is for the output of the linear model
+lambda_vec <- c(1, 1)
+
 #' ============================================================================
 #' ////////////////////////////////////////////////////////////////////////////
 
@@ -24,8 +37,15 @@ df_wide <- df %>% pivot_wider(id_cols = 'monitor_id', names_from = 'day_id',
                               values_from = 'air_temp') %>% 
   select(-monitor_id) %>% as.matrix()
 
-df_wide
+# also have to do some treatment to the co-variates
+N_predictors <- length(predictor_cols)
+Y_matrix    <- as.matrix(df[, response_col])
+X_matrix    <- as.matrix(df[, predictor_cols])
+ID_vector   <- as.integer(unlist(df[, monitor_id_col]))
 
+
+#' ============================================================================
+#' ////////////////////////////////////////////////////////////////////////////
 # get true values by day
 # and this is for the response
 # daily NETWORK 50th percentile, 5th percentile, and 95th percentile
@@ -47,6 +67,9 @@ check_f1 <- .Fortran('get_metric',
 
 stopifnot(mean(abs(check_r1 - check_f1$xout)) < 0.001)
 
+#' ============================================================================
+#' ////////////////////////////////////////////////////////////////////////////
+
 # now wrap into a bigger function
 get_metrics <- function(df_sub) {
   stat1 <- get_metric(df_sub, 0.05)
@@ -58,19 +81,25 @@ get_metrics <- function(df_sub) {
 # get the true values to compare against later
 df_best <- get_metrics(df_wide)
 
+#' ============================================================================
+#' ////////////////////////////////////////////////////////////////////////////
+
 # function for MSE
 get_mse <- function(a, b) mean((a - b)^2)
 
 # check that its comparable
 # get_mse(a, b, n, mse)
 set.seed(123)
+
 a = rnorm(10)
 b = rnorm(10)
+
 check_f3 <- .Fortran('get_mse', 
                      a = a, 
                      b = b, 
                      n = as.integer(10), 
                      mse = 0.)
+
 stopifnot(mean(abs(check_f3$mse - get_mse(a, b))) < 0.001)
 
 check_f3 <- .Fortran('get_mse', 
@@ -78,6 +107,11 @@ check_f3 <- .Fortran('get_mse',
                      b = a, 
                      n = as.integer(10), 
                      mse = 0.)
+
+stopifnot(check_f3$mse < 0.001)
+
+#' ============================================================================
+#' ////////////////////////////////////////////////////////////////////////////
 
 # This is the R version of your score matrix
 # you can use it to check your math
@@ -88,6 +122,10 @@ get_score <- function(S_local) {
   # S_local = S
   
   S_ones <- which(S_local == 1)
+  
+  # ---------------
+  # -- Part 1 -----
+  # ---------------
   
   # filter the data frame
   df_sub <- df_wide[S_ones, ]
@@ -106,15 +144,44 @@ get_score <- function(S_local) {
 
   # get sum
   # since we want this to be low, you don't have to make it negative
-  sum(zz)
+  z1 <- sum(zz)
+  
+  # ---------------
+  # -- Part 2 -----
+  # ---------------
+  
+  m_sub_rows <- which(ID_vector %in% S_ones)
+  
+  Y_sub <- matrix(Y_matrix[m_sub_rows, ], ncol = 1)
+  
+  X_matrix_sub <- X_matrix[m_sub_rows, ]
+  
+  # classic OLM invervsion lets go
+  # β = (XTX)−1XTy
+  beta_vector <- MASS::ginv(t(X_matrix_sub) %*% X_matrix_sub) %*% 
+    t(X_matrix_sub) %*% Y_sub
+  
+  # now predict on the full set
+  pred_sub <- X_matrix %*% beta_vector
+  
+  # and, you guessed it get_mse
+  z2 <- get_mse(Y_matrix, pred_sub)
+  
+  # ---------------
+  # -- Part 3 -----
+  # ---------------
+  
+  z1 * lambda_vec[1] + z2 * lambda_vec[2]
 
 }
 
 # get the first set
 S[c(1:k)] <- 1
+S
 
 # get the score
 check_r2 <- get_score(S)
+check_r2
 
 # compare
 # S, df_wide, magic_n, nsites, ndays, SCORE
@@ -131,7 +198,12 @@ check_f2
 
 stopifnot(mean(abs(check_r2 - check_f2$SCORE)) < 0.001)
 
+#' ============================================================================
+#' ////////////////////////////////////////////////////////////////////////////
+
 # another check, the mse should be 0 if the k = nsites
+# but you should never be able to run this in sim-ann because 
+# this breaks the algorithm
 
 # get the first set
 S[c(1:N)] <- 1
@@ -149,6 +221,8 @@ check_zero <- .Fortran('get_score',
                      score_cols = as.integer(3),
                      SCORE = 0.)
 check_zero
+
+stopifnot(mean(abs(check_r2 - check_zero$SCORE)) < 0.001)
 
 
 

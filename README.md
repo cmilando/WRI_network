@@ -50,6 +50,18 @@ so if its an integer it needs to have as.integer() in the argument
   distribution of the predictors and how well the beta coefficients do at predicting at 
   every monitor, with gamma tuning params in front of each that I can turn on or off as 
   necessary
+  
+  Hmm another thing to consider is that the current model doesn't contain an 
+  intercept for station -- but it probably doesn't need it, since all of the
+  geographic co-variates probably uniquely identify it anyway. But a good
+  thing to confirm
+  
+  Another issue you need to worry about is the units -- the units of each of 
+  these will have an impact on how the penalty looks. the units of the predictors
+  and the units of the MSE for both z1 and z2. Not sure exactly how to solve this
+  but the best idea would probably be to (a) z-score the predictor matrix and then
+  (b) test a range of z1 and z2 and see what answers are robust to that. 
+  
 
 ## Notes
 
