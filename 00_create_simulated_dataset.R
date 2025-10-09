@@ -12,7 +12,7 @@ library(tidyverse)
 library(mgcv)
 library(patchwork)
 
-set.seed(123)
+set.seed(122341233)
 
 N <- 100             # number of monitors
 
@@ -31,6 +31,8 @@ air_temp_sd <- 2     # st dev for random error, increase for more noise
 source("functions.R")
 df <- get_simulated_df()
 head(df)
+
+saveRDS(df, "test_df.RDS")
 
 #' ============================================================================
 #' ////////////////////////////////////////////////////////////////////////////

@@ -15,9 +15,12 @@ system("R CMD SHLIB simann.f90")
 # system("rm *.so")
 # system("rm *.o")
 # 
-dyn.unload("simann.so")
+# dyn.unload("simann.so")
 dyn.load("simann.so")
 
+# quantiles to assess feature similarity
+# moved in from the edges to be slightly more robust
+assess_quantiles <- c(0.05, 0.50, 0.95)
 
 # now for the linear model section
 predictor_cols <- c('daymet', 'green', 'albedo')
@@ -29,7 +32,7 @@ beta_vector <- c(beta_daymet, beta_green, beta_albedo) # same order as above
 # this assigns the weights to the different components of the composite score
 # position 1 is for predictors similarity
 # position 2 is for the output of the linear model
-lambda_vec <- c(1, 1)
+lambda_vec <- c(1, 0)
 
 
 #' ============================================================================
@@ -62,13 +65,15 @@ get_metric <- function(x, q) apply(x, 2, function(a) quantile(a, q))
 
 # check that this works against the Fortran version
 check_r1 <- get_metric(df_wide, 0.50)
+check_r1
 
 check_f1 <- .Fortran('get_metric', 
                      x = df_wide, 
                      nrow = as.integer(N), 
                      ncol = as.integer(N_daymet), 
-                     q = 0.5, 
+                     q = 0.50, 
                      xout = vector("numeric", N_daymet))
+check_f1$xout
 
 stopifnot(mean(abs(check_r1 - check_f1$xout)) < 0.001)
 
@@ -76,15 +81,21 @@ stopifnot(mean(abs(check_r1 - check_f1$xout)) < 0.001)
 #' ////////////////////////////////////////////////////////////////////////////
 
 # now wrap into a bigger function
-get_metrics <- function(df_sub) {
-  stat1 <- get_metric(df_sub, 0.05)
-  stat2 <- get_metric(df_sub, 0.50)
-  stat3 <- get_metric(df_sub, 0.95)
-  return(cbind(stat1, stat2, stat3))
+get_metrics <- function(df_sub, assess_quantiles) {
+  oo <- NA
+  for(qq in assess_quantiles) {
+    statX <- get_metric(df_sub, qq)
+    if(any(is.na(oo))) {
+      oo <- statX
+    } else {
+      oo <- cbind(oo, statX)
+    }
+  }
+  return(oo)
 }
 
 # get the true values to compare against later
-df_best <- get_metrics(df_wide)
+df_best <- get_metrics(df_wide, assess_quantiles)
 
 #' ============================================================================
 #' ////////////////////////////////////////////////////////////////////////////
@@ -170,7 +181,7 @@ get_score <- function(S_local) {
     df_sub <- df_wide[S_ones, ]
   
     # get just the points for this sample
-    yy <- get_metrics(df_sub)
+    yy <- get_metrics(df_sub, assess_quantiles)
   
     # get day-wise errors
     zz = vector("numeric", ncol(df_best))
@@ -226,14 +237,15 @@ get_score <- function(S_local) {
   # -- Part 3 -----
   # ---------------
   
-  print(z1)
-  print(z2)
-  
-  print(z1 * lambda_vec[1] + z2 * lambda_vec[2])
+  # print(z1)
+  # print(z2)
+  # 
+  # print(z1 * lambda_vec[1] + z2 * lambda_vec[2])
   z1 * lambda_vec[1] + z2 * lambda_vec[2]
 }
 
 # get the first set
+S <- rep(0, N)
 S[c(1:k)] <- 1
 S
 
@@ -252,7 +264,8 @@ check_f2 <- .Fortran('get_score',
                      magic_n = as.integer(k),
                      nsites = as.integer(N),
                      ndays = as.integer(N_daymet),
-                     score_cols = as.integer(3),
+                     q = assess_quantiles,
+                     score_cols = as.integer(length(assess_quantiles)),
                      X_matrix = X_matrix,
                      n_predictors = as.integer(N_predictors),
                      ID_vector = as.integer(ID_vector),
@@ -268,12 +281,22 @@ stopifnot(mean(abs(check_r2 - check_f2$SCORE)) < 0.001)
 #' ============================================================================
 #' ////////////////////////////////////////////////////////////////////////////
 
+system("R CMD SHLIB simann.f90")
+
+# system("rm *.so")
+# system("rm *.o")
+# 
+dyn.unload("simann.so")
+dyn.load("simann.so")
+
+
 # another check, the mse should be 0 if the k = nsites
 # but you should never be able to run this in sim-ann because 
 # this breaks the algorithm
 
 # get the first set
 S[c(1:N)] <- 1
+S
 
 # get the score
 check_r2 <- get_score(S)
@@ -282,10 +305,11 @@ check_r2
 check_zero <- .Fortran('get_score', 
                        S = as.integer(S),
                        df_wide = df_wide,
-                       magic_n = as.integer(k),
+                       magic_n = as.integer(N),
                        nsites = as.integer(N),
                        ndays = as.integer(N_daymet),
-                       score_cols = as.integer(3),
+                       q = assess_quantiles,
+                       score_cols = as.integer(length(assess_quantiles)),
                        X_matrix = X_matrix,
                        n_predictors = as.integer(N_predictors),
                        ID_vector = as.integer(ID_vector),
@@ -294,7 +318,7 @@ check_zero <- .Fortran('get_score',
                        SCORE_z1 = 0.,
                        SCORE_z2 = 0.,
                        SCORE = 0.)
-check_zero
+check_zero$SCORE
 
 stopifnot(mean(abs(check_r2 - check_zero$SCORE)) < 0.001)
 

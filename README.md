@@ -1,6 +1,8 @@
 For the WRI project, a repo that shows how to select a minimum number of stations
 that don't compromise model performance.
 
+To run with a new dataset, try `04_full.R`
+
 ## File list
 
 #### `00_create_simulated_dataset.R`
@@ -39,6 +41,10 @@ scoring function
 
 Finally run the simulated annealing, and many times per monitor to build the 
 curve.
+
+#### `04_full.R`
+
+All the above scripts combined and streamlined, with some validation.
 
 #### `simann.f90`
 

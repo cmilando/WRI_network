@@ -240,7 +240,7 @@ end subroutine ols_svd
 ! 
 ! this is what needs to change for a new application
 !--------------------------------------------------------------------------
-subroutine get_score(S, df_wide, magic_n, nsites, ndays, score_cols, & 
+subroutine get_score(S, df_wide, magic_n, nsites, ndays, q, score_cols, & 
  &                   X_matrix, n_predictors, ID_vector, Y_matrix, lambda_vec,  & 
  &                   SCORE_z1, SCORE_z2, SCORE)
 
@@ -252,11 +252,13 @@ subroutine get_score(S, df_wide, magic_n, nsites, ndays, score_cols, &
     integer, intent(in)        :: ndays                    ! total number of days
     
     integer, intent(in)        :: score_cols               ! number of columns in the score matrix, so 3 (med, min, max)
+    real(kind=8), intent(in)   :: q(score_cols)
     integer                    :: S(nsites)                ! S, a specific iteration of the magic indicator
     
     real(kind=8), intent(in)   :: df_wide(nsites, ndays)
     
     integer, intent(in)        :: n_predictors             ! total number of predictors in X
+
     real(kind=8), intent(in)   :: X_matrix(nsites * ndays, n_predictors)
     integer, intent(in)        :: ID_vector(nsites * ndays)
     real(kind=8), intent(in)   :: Y_matrix(nsites * ndays)
@@ -275,7 +277,6 @@ subroutine get_score(S, df_wide, magic_n, nsites, ndays, score_cols, &
     real(kind=8)  :: metric_matrix(ndays, score_cols)
     real(kind=8)  :: best_matrix(ndays, score_cols)
     real(kind=8)  :: tmp_xout(ndays)
-    real(kind=8)  :: q(score_cols)
     real(kind=8)  :: tmp_rmse
     
     integer       :: total_rows
@@ -319,10 +320,6 @@ subroutine get_score(S, df_wide, magic_n, nsites, ndays, score_cols, &
       ! get just the points for this sample
       ! subroutine get_metric(x, nrow, ncol, q, xout)
       ! yy <- get_metrics(df_sub)
-      ! hard-coded these for now, can obviously change how this works later
-      q(1) = 0.05
-      q(2) = 0.50
-      q(3) = 0.95
       do i = 1, score_cols
       
           ! best
@@ -426,7 +423,7 @@ end subroutine get_score
 ! - and then the two places where get_score is calculated
 ! - and the subroutine call obvi
 ! ------------------------------------------------------------------------------------
-subroutine simann(S, df_wide, magic_n, nsites, ndays, score_cols, & 
+subroutine simann(S, df_wide, magic_n, nsites, ndays, q, score_cols, & 
       & X_matrix, n_predictors, ID_vector, Y_matrix, lambda_vec, &
       & SCORE_z1, SCORE_z2, SCORE, cooling_rate, verbose)
     
@@ -437,6 +434,7 @@ subroutine simann(S, df_wide, magic_n, nsites, ndays, score_cols, &
     integer, intent(in)        :: nsites      ! total number of sites
     integer, intent(in)        :: ndays       ! total number of days
     integer, intent(in)        :: score_cols  ! number of columns in the score matrix, so 3 (med, min, max)
+    real(kind=8), intent(in)   :: q(score_cols)
     integer                    :: S(nsites)   ! S, a specific iteration of the magic indicator
     real(kind=8), intent(in)   :: df_wide(nsites, ndays)
     
@@ -501,7 +499,7 @@ subroutine simann(S, df_wide, magic_n, nsites, ndays, score_cols, &
     
     ! //////////////////////////////////////////////
     ! >>>>>>> this call changes with get_score <<<<<<<<
-    call get_score(S, df_wide, magic_n, nsites, ndays, score_cols, & 
+    call get_score(S, df_wide, magic_n, nsites, ndays, q, score_cols, & 
     &  X_matrix, n_predictors, ID_vector, Y_matrix, lambda_vec,  & 
     &                   SCORE_z1, SCORE_z2,SCORE)
     ! >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -544,7 +542,7 @@ subroutine simann(S, df_wide, magic_n, nsites, ndays, score_cols, &
             
             ! //////////////////////////////////////////////
             ! >>>>>>> this call changes with get_score <<<<<<<<
-            call get_score(S, df_wide, magic_n, nsites, ndays, score_cols, & 
+            call get_score(S, df_wide, magic_n, nsites, ndays, q, score_cols, & 
             &  X_matrix, n_predictors, ID_vector, Y_matrix, lambda_vec,  & 
             &                   SCORE_z1, SCORE_z2,SCORE)
             ! >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>

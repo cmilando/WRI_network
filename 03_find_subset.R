@@ -16,21 +16,29 @@ dyn.load("simann.so")
 
 find_optimal_set <- function(k_in, rep_in, verbose = 0) {
   
+  # k_in = 5
+  # verbose = 1
+  
   write.table(NA, file = paste0("tmp/k",k_in, "_rep", rep_in))
   
   dyn.load("simann.so")
   
   # initialize S to be relative to this k_in
   S <- rep(0, N)  
-  S[c(1:k_in)] <- 1
   
+  # randomly get k starting positions
+  init <- sample(1:N, size = k_in, replace = F)
+  
+  S[init] <- 1
+
   oo <- .Fortran("simann",
                  S = as.integer(S),
                  df_wide = df_wide,
                  magic_n = as.integer(k_in),
                  nsites = as.integer(N),
                  ndays = as.integer(N_daymet),
-                 score_cols = as.integer(3),
+                 q = assess_quantiles,
+                 score_cols = as.integer(length(assess_quantiles)),
                  X_matrix = X_matrix,
                  n_predictors = as.integer(N_predictors),
                  ID_vector = as.integer(ID_vector),
@@ -68,7 +76,7 @@ plan(multisession)
 # to think of reasonable bounds for k before you start
 # specifically, you can't do k = N, k must always be < N
 
-test_grid <- expand_grid(k = seq(10, 100, by = 10), rep = 1:5)
+test_grid <- expand_grid(k = seq(70, 90, by = 4), rep = 1:5)
 test_grid
 system("mkdir tmp")
 system("rm -r tmp/*")
@@ -86,7 +94,7 @@ total_oo <- future_lapply(1:nrow(test_grid), \(i) {
                    rep_in = test_grid$rep[i],
                    verbose = 0)
   
-})
+}, future.seed = T)
 
 #' ============================================================================
 #' ////////////////////////////////////////////////////////////////////////////
@@ -99,12 +107,12 @@ plot_df <- do.call(rbind, lapply(total_oo, \(l)
                                  data.frame(l$SCORE, l$SCORE_z1, l$SCORE_z2,
                                             l$k, l$rep)))
 
-plot_df_long <- plot_df %>% pivot_longer(cols = c(l.SCORE, l.SCORE_z1, l.SCORE_z2))
+plot_df_long <- plot_df %>% 
+  pivot_longer(cols = c(l.SCORE, l.SCORE_z1, l.SCORE_z2))
 
 plot_med <- plot_df_long %>%
   group_by(l.k, name) %>% summarize(.groups = 'keep', med = median(value))
 
-plot_med
 
 p1 <- ggplot(plot_df_long %>% filter(name == 'l.SCORE')) +
   geom_line(data = plot_med %>% filter(name == 'l.SCORE'),
@@ -130,4 +138,4 @@ p2 <- ggplot(plot_df_long %>% filter(name != 'l.SCORE')) +
 
 p1 + ggtitle('a. Combined score') + p2 + ggtitle('b. Individual components')
 
-ggsave("img/fig2.png", width = 8.9, height = 4.2, dpi = 500)
+ggsave("img/fig2_122341233.png", width = 8.9, height = 4.2, dpi = 500)
