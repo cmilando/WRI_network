@@ -3,27 +3,38 @@ that don't compromise model performance.
 
 ## File list
 
-* `00_create_simulated_dataset.R`
+#### `00_create_simulated_dataset.R`
 
 Creates the simulated data. The key part is where you can define `beta_daymet`, 
 `beta_green`, and `beta_albedo` which essentially 
 changes the relationship between predictor and the response. Otherwise this
 isn't really important -- we have these data already, just needed something.
 
-* `01_model_airtemp.R`
+However, we do make several assumptions about the dataset:
+
+1. Every monitor has a value for every predictor every day. So the predictor matrix
+has `N_monitors * N_days` of rows.
+
+1. There is a monitor ID column, which is an integer, that is `1:N_monitors`
+
+1. There is a day ID column which is an integer and is `1:N_days`
+
+
+#### `01_model_airtemp.R`
 
 Creates the linear model for the predictors. uses bootstrapping to calculate
 wider confidence intervals from using fewer than all stations
 
-* `02_annealing_prep.R`
+#### `02_annealing_prep.R`
 
-Prepares the dataset for annealing
+Prepares the dataset for annealing. This also contains an R-version of the 
+scoring function
 
-* `03_find_subset.R`
+#### `03_find_subset.R`
 
 
 
-* `simann.f90`
+#### `simann.f90`
 
 Simulated annealing in FORTRAN
 the SCORE function is defined by model performance 
@@ -32,13 +43,13 @@ so if its an integer it needs to have as.integer() in the argument
 
 ## Chad ToDo
 
-* Right now you are just comparing the values directly, you aren't using the model
+  Right now you are just comparing the values directly, you aren't using the model
   I guess eventually you will want to see how the modeled values perform?
   Like does the subset affect your ability to MODEL, not just cover the datapoints themselves
   So you need to change this up slightly
   And do you assess this based on the model coefficients?
   
-* Ok there are two additional thoughts here - you can't really do the RMSE alone, because you
+  Ok there are two additional thoughts here - you can't really do the RMSE alone, because you
   might just get lucky and get two points where it predicts really well. probably what you need
   is estimate the coefficients using the subset and then predict at all places you have data. 
   Again this doesn't solve the issue of over-representation in some areas, but again, we can't solve that.
@@ -61,6 +72,9 @@ so if its an integer it needs to have as.integer() in the argument
   and the units of the MSE for both z1 and z2. Not sure exactly how to solve this
   but the best idea would probably be to (a) z-score the predictor matrix and then
   (b) test a range of z1 and z2 and see what answers are robust to that. 
+  
+  Also, you want to export the final Score and Z1 and Z2 separately, so you can plot
+  And do manual calibration based on how much you care about each thing
   
 
 ## Notes

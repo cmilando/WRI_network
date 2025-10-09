@@ -12,6 +12,10 @@ k <- 5          # the first number of monitors to start with
 # importantly you can now compare this output with the fortran output for score
 system("R CMD SHLIB simann.f90")
 
+# system("rm *.so")
+# system("rm *.o")
+# 
+dyn.unload("simann.so")
 dyn.load("simann.so")
 
 
@@ -26,6 +30,7 @@ beta_vector <- c(beta_daymet, beta_green, beta_albedo) # same order as above
 # position 1 is for predictors similarity
 # position 2 is for the output of the linear model
 lambda_vec <- c(1, 1)
+
 
 #' ============================================================================
 #' ////////////////////////////////////////////////////////////////////////////
@@ -85,30 +90,61 @@ df_best <- get_metrics(df_wide)
 #' ////////////////////////////////////////////////////////////////////////////
 
 # function for MSE
-get_mse <- function(a, b) mean((a - b)^2)
+get_rmse <- function(a, b) sqrt(mean((a - b)^2))
 
 # check that its comparable
-# get_mse(a, b, n, mse)
+# get_rmse(a, b, n, mse)
 set.seed(123)
 
 a = rnorm(10)
 b = rnorm(10)
 
-check_f3 <- .Fortran('get_mse', 
+check_f3 <- .Fortran('get_rmse', 
                      a = a, 
                      b = b, 
                      n = as.integer(10), 
                      mse = 0.)
 
-stopifnot(mean(abs(check_f3$mse - get_mse(a, b))) < 0.001)
+stopifnot(mean(abs(check_f3$mse - get_rmse(a, b))) < 0.001)
 
-check_f3 <- .Fortran('get_mse', 
+check_f3 <- .Fortran('get_rmse', 
                      a = a, 
                      b = a, 
                      n = as.integer(10), 
-                     mse = 0.)
+                     rmse = 0.)
 
-stopifnot(check_f3$mse < 0.001)
+stopifnot(check_f3$rmse < 0.001)
+
+
+#' ============================================================================
+#' ////////////////////////////////////////////////////////////////////////////
+
+# check OLS decomposition
+
+
+set.seed(1)
+n <- 100L; p <- 3L
+X <- matrix(rnorm(n*p), n, p)
+Y <- rnorm(n)
+
+beta <- double(p); info <- integer(1)
+
+## SVD version (robust)
+rank <- integer(1)
+out2 <- .Fortran("ols_svd",
+                 X     = as.double(X),
+                 Y     = as.double(Y),
+                 n     = as.integer(n),
+                 p     = as.integer(p),
+                 rcond = as.double(1e-12),
+                 beta  = beta,
+                 rank  = rank,
+                 info  = info)
+out2$beta
+coef(lm(Y ~ X + 0))
+
+# nice looks good
+
 
 #' ============================================================================
 #' ////////////////////////////////////////////////////////////////////////////
@@ -127,52 +163,71 @@ get_score <- function(S_local) {
   # -- Part 1 -----
   # ---------------
   
-  # filter the data frame
-  df_sub <- df_wide[S_ones, ]
-
-  # get just the points for this sample
-  yy <- get_metrics(df_sub)
-
-  # get day-wise errors
-  zz = vector("numeric", ncol(df_best))
-
-  for(i in 1:(ncol(df_best))) {
-    a = unlist(unname(as.vector(df_best[, i])))
-    b = unlist(unname(as.vector(yy[, i])))
-    zz[i] = get_mse(a, b)
+  if (lambda_vec[1] != 0) {
+    
+    # filter the data frame
+    df_sub <- df_wide[S_ones, ]
+  
+    # get just the points for this sample
+    yy <- get_metrics(df_sub)
+  
+    # get day-wise errors
+    zz = vector("numeric", ncol(df_best))
+  
+    for(i in 1:(ncol(df_best))) {
+      a = unlist(unname(as.vector(df_best[, i])))
+      b = unlist(unname(as.vector(yy[, i])))
+      zz[i] = get_rmse(a, b)
+    }
+  
+    # get sum
+    # since we want this to be low, you don't have to make it negative
+    z1 <- sum(zz)
+    
+  } else {
+    
+    z1 <- 0
+    
   }
-
-  # get sum
-  # since we want this to be low, you don't have to make it negative
-  z1 <- sum(zz)
   
   # ---------------
   # -- Part 2 -----
   # ---------------
   
-  m_sub_rows <- which(ID_vector %in% S_ones)
-  
-  Y_sub <- matrix(Y_matrix[m_sub_rows, ], ncol = 1)
-  
-  X_matrix_sub <- X_matrix[m_sub_rows, ]
-  
-  # classic OLM invervsion lets go
-  # β = (XTX)−1XTy
-  beta_vector <- MASS::ginv(t(X_matrix_sub) %*% X_matrix_sub) %*% 
-    t(X_matrix_sub) %*% Y_sub
-  
-  # now predict on the full set
-  pred_sub <- X_matrix %*% beta_vector
-  
-  # and, you guessed it get_mse
-  z2 <- get_mse(Y_matrix, pred_sub)
-  
+  if (lambda_vec[2] != 0) {
+    
+    m_sub_rows <- which(ID_vector %in% S_ones)
+    
+    Y_sub <- matrix(Y_matrix[m_sub_rows, ], ncol = 1)
+    
+    X_matrix_sub <- X_matrix[m_sub_rows, ]
+    
+    # classic OLM invervsion lets go
+    # β = (XTX)−1XTy
+    beta_vector <- MASS::ginv(t(X_matrix_sub) %*% X_matrix_sub) %*% 
+      t(X_matrix_sub) %*% Y_sub
+    
+    # now predict on the full set
+    pred_sub <- X_matrix %*% beta_vector
+    
+    # and, you guessed it get_rmse
+    z2 <- get_rmse(Y_matrix, pred_sub)
+    
+  } else {
+    
+    z2 <- 0
+    
+  }
+    
   # ---------------
   # -- Part 3 -----
   # ---------------
   
+  print(z1)
+  print(z2)
+  
+  print(z1 * lambda_vec[1] + z2 * lambda_vec[2])
   z1 * lambda_vec[1] + z2 * lambda_vec[2]
-
 }
 
 # get the first set
@@ -185,7 +240,9 @@ check_r2
 
 # compare
 # S, df_wide, magic_n, nsites, ndays, SCORE
-# get_score(S, df_wide, magic_n, nsites, ndays, score_cols, SCORE)
+# get_score(S, df_wide, magic_n, nsites, ndays, score_cols, 
+# X_matrix, n_predictors, ID_vector, Y_matrix, lambda,  & 
+#   &                   SCORE_z1, SCORE_z2
 check_f2 <- .Fortran('get_score', 
                      S = as.integer(S),
                      df_wide = df_wide,
@@ -193,8 +250,15 @@ check_f2 <- .Fortran('get_score',
                      nsites = as.integer(N),
                      ndays = as.integer(N_daymet),
                      score_cols = as.integer(3),
+                     X_matrix = X_matrix,
+                     n_predictors = as.integer(N_predictors),
+                     ID_vector = as.integer(ID_vector),
+                     Y_matrix = Y_matrix,
+                     labmda = lambda_vec,
+                     SCORE_z1 = 0.,
+                     SCORE_z2 = 0.,
                      SCORE = 0.)
-check_f2
+check_f2$SCORE
 
 stopifnot(mean(abs(check_r2 - check_f2$SCORE)) < 0.001)
 
