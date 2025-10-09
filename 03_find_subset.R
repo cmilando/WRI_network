@@ -68,7 +68,7 @@ plan(multisession)
 # to think of reasonable bounds for k before you start
 # specifically, you can't do k = N, k must always be < N
 
-test_grid <- expand_grid(k = seq(10, 100, by = 3), rep = 1:5)
+test_grid <- expand_grid(k = seq(10, 100, by = 10), rep = 1:5)
 test_grid
 system("mkdir tmp")
 system("rm -r tmp/*")
@@ -78,6 +78,8 @@ system("rm -r tmp/*")
 total_oo <- future_lapply(1:nrow(test_grid), \(i) {
   
   # you can't do k = N, k must always be < N
+  # just for sim-ann, because the algorithm
+  # you can get a score, which you checked earlier
   if (test_grid$k[i] == N) return(NULL)
   
   find_optimal_set(k_in = test_grid$k[i], 
@@ -93,17 +95,39 @@ total_oo <- future_lapply(1:nrow(test_grid), \(i) {
 #' ////////////////////////////////////////////////////////////////////////////
 #' ============================================================================
 
-plot_df <- do.call(rbind, lapply(total_oo, \(l) data.frame(l$SCORE, l$k, l$rep)))
-plot_med <- plot_df %>%
-  group_by(l.k) %>% summarize(.groups = 'keep', med = median(l.SCORE))
+plot_df <- do.call(rbind, lapply(total_oo, \(l) 
+                                 data.frame(l$SCORE, l$SCORE_z1, l$SCORE_z2,
+                                            l$k, l$rep)))
 
-ggplot(plot_df) +
-  geom_line(data = plot_med,
+plot_df_long <- plot_df %>% pivot_longer(cols = c(l.SCORE, l.SCORE_z1, l.SCORE_z2))
+
+plot_med <- plot_df_long %>%
+  group_by(l.k, name) %>% summarize(.groups = 'keep', med = median(value))
+
+plot_med
+
+p1 <- ggplot(plot_df_long %>% filter(name == 'l.SCORE')) +
+  geom_line(data = plot_med %>% filter(name == 'l.SCORE'),
             aes(x = l.k / N * 100, y = med / l.k),
             color = 'blue', linewidth = 1, linetype = '11') + 
-  geom_boxplot(aes(x = l.k / N * 100, y = l.SCORE / l.k, group = l.k)) +
+  geom_boxplot(aes(x = l.k / N * 100, y = value / l.k, group = l.k),
+               outlier.shape = NA) +
   xlab("% of monitors included") + 
   ylab("Composite error score per monitor")
-  
+
+p2 <- ggplot(plot_df_long %>% filter(name != 'l.SCORE')) +
+  geom_line(data = plot_med %>% filter(name != 'l.SCORE'),
+            aes(x = l.k / N * 100, y = med / l.k, color = name,
+                group = name),
+            linewidth = 1, linetype = '11') + 
+  geom_boxplot(aes(x = l.k / N * 100, y = value / l.k, group = paste0(name,l.k),
+                   color = name),
+               outlier.shape = NA, position = 'identity') +
+  scale_color_discrete(labels = c('feature coverage', 'response fit'),
+                       name = 'Error type') +
+  xlab("% of monitors included") + 
+  ylab("Composite error score per monitor")  
+
+p1 + ggtitle('a. Combined score') + p2 + ggtitle('b. Individual components')
 
 ggsave("img/fig2.png", width = 8.9, height = 4.2, dpi = 500)
